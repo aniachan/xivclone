@@ -1,0 +1,11 @@
+{
+  "Author": "aniachan",
+  "Name": "xivclone",
+  "Punchline": "Clone mods from people :p",
+  "Description": "/clone to use",
+  "InternalName": "xivclone",
+  "ApplicableVersion": "any",
+  "Tags": [
+    "xivclone"
+  ]
+}
