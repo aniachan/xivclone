@@ -29,18 +29,18 @@ jobs:
       - name: write version into jsons
         run: |
           $ver = '${{ github.ref_name }}'
-          $path = './xivclone/bin/Release/xivclone.json'
+          $path = './xivclone/bin/x64/Release/xivclone.json'
           $json = Get-Content -Raw $path | ConvertFrom-Json
           $json.AssemblyVersion = $ver
           $content = $json | ConvertTo-Json
           set-content -Path $path -Value $content
       - name: Archive
-        run: Compress-Archive -Path xivclone/bin/Release/* -DestinationPath xivclone.zip
+        run: Compress-Archive -Path xivclone/bin/x64/Release/* -DestinationPath xivclone.zip
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v2.2.1
         with:
           path: |
-            ./xivclone/bin/Release/*
+            ./xivclone/bin/x64/Release/*
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1

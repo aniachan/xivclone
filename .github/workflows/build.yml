@@ -27,9 +27,9 @@ jobs:
         run: |
           dotnet build --no-restore --configuration Release --nologo
       - name: Archive
-        run: Compress-Archive -Path xivclone/bin/Release/* -DestinationPath xivclone.zip
+        run: Compress-Archive -Path xivclone/bin/x64/Release/* -DestinationPath xivclone.zip
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v2.2.1
         with:
           path: |
-            ./xivclone/bin/Release/*
+            ./xivclone/bin/x64/Release/*
