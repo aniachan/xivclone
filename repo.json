@@ -1,25 +1,24 @@
 [
-    {
-      "Author": "aniachan",
-      "Name": "xivclone",
-      "Description": "You know :p",
-      "InternalName": "xivclone",
-      "AssemblyVersion": "0.0.0.1",
-      "TestingAssemblyVersion": "0.0.0.1",
-      "RepoUrl": "https://github.com/aniachan/xivclone",
-      "ApplicableVersion": "any",
-      "DalamudApiLevel": 9,
-      "IsHide": "False",
-      "IsTestingExclusive": "False",
-      "DownloadCount": 0,
-      "LastUpdate": 0,
-      "LoadPriority": 69420,
-      "LoadRequiredState": 2,
-      "LoadSync": true,
-      "DownloadLinkInstall": "https://github.com/aniachan/xivclone/releases/download/0.0.0.1/xivclone.zip",
-      "DownloadLinkTesting": "https://github.com/aniachan/xivclone/releases/download/0.0.0.1/xivclone.zip",
-      "DownloadLinkUpdate": "https://github.com/aniachan/xivclone/releases/download/0.0.0.1/xivclone.zip",
-      "IconUrl": "https://raw.githubusercontent.com/aniachan/xivclone/master/images/icon.png"
-    }
-  ]
-  
+  {
+    "Author": "aniachan",
+    "Name": "xivclone",
+    "Description": "You know :p",
+    "InternalName": "xivclone",
+    "AssemblyVersion": "0.0.0.1",
+    "TestingAssemblyVersion": "0.0.0.1",
+    "RepoUrl": "https://github.com/aniachan/xivclone",
+    "ApplicableVersion": "any",
+    "DalamudApiLevel": 9,
+    "IsHide": "False",
+    "IsTestingExclusive": "False",
+    "DownloadCount": 0,
+    "LastUpdate": 0,
+    "LoadPriority": 69420,
+    "LoadRequiredState": 2,
+    "LoadSync": true,
+    "DownloadLinkInstall": "https://github.com/aniachan/xivclone/releases/download/0.0.0.1/xivclone.zip",
+    "DownloadLinkTesting": "https://github.com/aniachan/xivclone/releases/download/0.0.0.1/xivclone.zip",
+    "DownloadLinkUpdate": "https://github.com/aniachan/xivclone/releases/download/0.0.0.1/xivclone.zip",
+    "IconUrl": "https://raw.githubusercontent.com/aniachan/xivclone/master/images/icon.png"
+  }
+]
