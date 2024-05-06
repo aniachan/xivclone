@@ -44,7 +44,7 @@ namespace xivclone.Managers
             tempCollections.Clear();
         }
 
-        public bool AppendSnapshot(Character character)
+        public bool AppendSnapshot(Character character, string snapshotName)
         {
             var charaName = character.Name.TextValue;
             var path = Path.Combine(Plugin.Configuration.WorkingDirectory, charaName);
@@ -64,7 +64,7 @@ namespace xivclone.Managers
             if (!Directory.Exists(path))
             {
                 //no existing snapshot for character, just use save mode
-                this.SaveSnapshot(character);
+                this.SaveSnapshot(character, snapshotName);
             }
 
             //Merge file replacements
@@ -111,10 +111,12 @@ namespace xivclone.Managers
             return true;
         }
 
-        public bool SaveSnapshot(Character character)
+        public bool SaveSnapshot(Character character, string snapshotName)
         {
             var charaName = character.Name.TextValue;
-            var path = Path.Combine(Plugin.Configuration.WorkingDirectory,charaName);
+
+            var snapName = charaName + "_" + snapshotName;
+            var path = Path.Combine(Plugin.Configuration.WorkingDirectory,snapName);
             SnapshotInfo snapshotInfo = new();
 
             if (Directory.Exists(path))
@@ -129,10 +131,11 @@ namespace xivclone.Managers
             Logger.Debug($"Got glamourer string {snapshotInfo.GlamourerString}");
 
             //Save all file replacements
-            
             List<FileReplacement> replacements = GetFileReplacementsForCharacter(character);
 
             Logger.Debug($"Got {replacements.Count} replacements");
+
+            Logger.Debug($"Path: {path}");
 
             foreach(var replacement in replacements)
             {
@@ -157,9 +160,9 @@ namespace xivclone.Managers
             {
                 Logger.Debug("C+ api loaded");
                 var data = Plugin.IpcManager.GetCustomizePlusScaleFromCharacter(character);
-                //Logger.Info(Plugin.DalamudUtil.PlayerName);
-                //Logger.Info(character.Name.TextValue);
-                //Logger.Info($"Cust+: {data}");
+                Logger.Debug(Plugin.DalamudUtil.PlayerName);
+                Logger.Debug(character.Name.TextValue);
+                Logger.Debug($"Cust+: {data}");
                 if (!data.IsNullOrEmpty())
                 {
                     File.WriteAllText(Path.Combine(path, "customizePlus.json"), data);

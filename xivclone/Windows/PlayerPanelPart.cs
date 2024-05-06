@@ -1,18 +1,9 @@
 using Dalamud.Interface;
-using Dalamud.Interface.Utility;
 using Dalamud.Interface.Colors;
-using Dalamud.Plugin.Services;
-using Dalamud.Interface.ImGuiFileDialog;
 using ImGuiNET;
-using xivclone.Utils;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Numerics;
-using System.Text;
-using System.Threading.Tasks;
-using static Lumina.Data.Parsing.Layer.LayerCommon;
 
 namespace xivclone.Windows
 {
@@ -29,25 +20,46 @@ namespace xivclone.Windows
             ImGui.Button($"{currentLabel}##playerHeader", -Vector2.UnitX * 0.0001f);
         }
 
+        private string saveDialogName = ""; // Variable to store the name for save operation
+        private string appendDialogName = ""; // Variable to store the name for append operation
+        private bool showSaveDialog = false; // Flag to indicate whether to show the save dialog
+        private bool showAppendDialog = false; // Flag to indicate whether to show the append dialog
+
         private void DrawPlayerPanel()
         {
             ImGui.Text("Save snapshot of player ");
             ImGui.SameLine();
             ImGui.PushFont(UiBuilder.IconFont);
+
             try
             {
                 string saveIcon = FontAwesomeIcon.Save.ToIconString();
+
                 if (ImGui.Button(saveIcon))
                 {
-                    //save snapshot
-                    if (player != null)
-                        Plugin.SnapshotManager.SaveSnapshot(player);
+                    // Set flag to show save dialog
+                    showSaveDialog = true;
                 }
             }
             finally
             {
                 ImGui.PopFont();
             }
+
+            if (showSaveDialog)
+            {
+                if (OpenNameField("Save Snapshot", ref saveDialogName))
+                {
+                    // Save snapshot with optional name
+                    if (player != null)
+                        Plugin.SnapshotManager.SaveSnapshot(player, saveDialogName);
+
+                    // Reset flag and name
+                    showSaveDialog = false;
+                    saveDialogName = "";
+                }
+            }
+
             if (!IsInGpose)
             {
                 ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudYellow);
@@ -58,13 +70,14 @@ namespace xivclone.Windows
             ImGui.Text("Append to existing snapshot");
             ImGui.SameLine();
             ImGui.PushFont(UiBuilder.IconFont);
+
             try
             {
                 string addIcon = FontAwesomeIcon.Plus.ToIconString();
-                if(ImGui.Button(addIcon))
+                if (ImGui.Button(addIcon))
                 {
-                    if (player != null)
-                        Plugin.SnapshotManager.AppendSnapshot(player);
+                    // Set flag to show append dialog
+                    showAppendDialog = true;
                 }
             }
             finally
@@ -72,11 +85,26 @@ namespace xivclone.Windows
                 ImGui.PopFont();
             }
 
+            if (showAppendDialog)
+            {
+                if (OpenNameField("Append Snapshot", ref appendDialogName))
+                {
+                    // Append snapshot with optional name
+                    if (player != null)
+                        Plugin.SnapshotManager.AppendSnapshot(player, appendDialogName);
+
+                    // Reset flag and name
+                    showAppendDialog = false;
+                    appendDialogName = "";
+                }
+            }
+
             if (this.modifiable)
             {
                 ImGui.Text("Load snapshot onto ");
                 ImGui.SameLine();
                 ImGui.PushFont(UiBuilder.IconFont);
+
                 try
                 {
                     string loadIcon = FontAwesomeIcon.Clipboard.ToIconString();
@@ -108,6 +136,43 @@ namespace xivclone.Windows
             }
         }
 
+        private bool OpenNameField(string windowTitle, ref string name)
+        {
+            ImGui.OpenPopup(windowTitle);
+
+            bool open = true; // Flag to keep the popup open
+
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(200, 110));
+            if (ImGui.BeginPopupModal(windowTitle, ref open, ImGuiWindowFlags.NoResize))
+            {
+                ImGui.Text("Enter snapshot name (optional):");
+
+                // Generate default name if name is empty
+                if (string.IsNullOrEmpty(name))
+                {
+                    name = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+                }
+
+                ImGui.InputText("", ref name, 100);
+
+                if (ImGui.Button("Save"))
+                {
+                    ImGui.CloseCurrentPopup();
+                    return true; // Return true when Save button is clicked
+                }
+                ImGui.SameLine();
+                if (ImGui.Button("Cancel"))
+                {
+                    ImGui.CloseCurrentPopup();
+                }
+
+                ImGui.EndPopup();
+            }
+
+            return false; // Return false if the dialog is canceled
+        }
+
+
         private void DrawMonsterPanel()
         {
 
@@ -130,5 +195,6 @@ namespace xivclone.Windows
 
             ImGui.EndChild();
         }
+
     }
 }

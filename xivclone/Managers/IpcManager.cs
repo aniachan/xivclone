@@ -9,7 +9,6 @@ using System.Text;
 using Penumbra.Api.Enums;
 using Penumbra.Api.Helpers;
 using xivclone.Utils;
-using System.Security;
 
 namespace xivclone.Managers;
 
@@ -21,13 +20,18 @@ public class IpcManager : IDisposable
 {
     private const string TempCollectionPrefix = "Snap_";
 
-    private readonly ICallGateSubscriber<int> _glamourerApiVersions;
-    private readonly ICallGateSubscriber<string, GameObject?, object>? _glamourerApplyAll;
+    private readonly uint LockCode = 0x6D617265;
+    private readonly ICallGateSubscriber<(int, int)> _glamourerApiVersions;
+    private readonly ICallGateSubscriber<string, GameObject?, uint, object>? _glamourerApplyAll;
     private readonly ICallGateSubscriber<GameObject?, string>? _glamourerGetAllCustomization;
-    private readonly ICallGateSubscriber<GameObject?, object> _glamourerRevertCustomization;
-    private readonly ICallGateSubscriber<string, GameObject?, object>? _glamourerApplyOnlyEquipment;
-    private readonly ICallGateSubscriber<string, GameObject?, object>? _glamourerApplyOnlyCustomization;
+    private readonly ICallGateSubscriber<GameObject?, uint, string>? _glamourerGetAllCustomizationLocked;
+    private readonly ICallGateSubscriber<GameObject?, uint, object> _glamourerRevertCustomization;
+    private readonly ICallGateSubscriber<string, GameObject?, uint, object>? _glamourerApplyOnlyEquipment;
+    private readonly ICallGateSubscriber<string, GameObject?, uint, object>? _glamourerApplyOnlyCustomization;
+    private readonly ICallGateSubscriber<Character?, uint, bool> _glamourerUnlock;
+    private readonly ICallGateSubscriber<string, uint, bool> _glamourerUnlockName;
 
+    private readonly FuncProvider<uint, int> _unlockAllProvider;
     private readonly FuncSubscriber<(int, int)> _penumbraApiVersion;
     private readonly FuncSubscriber<string, PenumbraApiEc> _penumbraCreateNamedTemporaryCollection;
     private readonly FuncSubscriber<string> _penumbraGetMetaManipulations;
@@ -55,9 +59,7 @@ public class IpcManager : IDisposable
     private readonly ICallGateSubscriber<GameObject, float, object?> _heelsRegisterPlayer;
     private readonly ICallGateSubscriber<GameObject, object?> _heelsUnregisterPlayer;
 
-    private readonly ICallGateSubscriber<string> _customizePlusApiVersion;
-    private readonly ICallGateSubscriber<string> _customizePlusBranch;
-    private readonly ICallGateSubscriber<string, string> _customizePlusGetBodyScale;
+    private readonly ICallGateSubscriber<(int, int)> _customizePlusApiVersion;
     private readonly ICallGateSubscriber<Character?, string> _customizePlusGetBodyScaleFromCharacter; 
     private readonly ICallGateSubscriber<string, Character?, object> _customizePlusSetBodyScaleToCharacter;
     private readonly ICallGateSubscriber<Character?, object> _customizePlusRevert;
@@ -92,12 +94,15 @@ public class IpcManager : IDisposable
         _penumbraGameObjectResourcePathResolved = Penumbra.Api.Ipc.GameObjectResourcePathResolved.Subscriber(pi, (ptr, arg1, arg2) => ResourceLoaded((IntPtr)ptr, arg1, arg2));
         _penumbraModSettingChanged = Penumbra.Api.Ipc.ModSettingChanged.Subscriber(pi, (modsetting, a, b, c) => PenumbraModSettingChangedHandler());
 
-        _glamourerApiVersions = pi.GetIpcSubscriber<int>("Glamourer.ApiVersions");
+        _glamourerApiVersions = pi.GetIpcSubscriber<(int, int)>("Glamourer.ApiVersions");
         _glamourerGetAllCustomization = pi.GetIpcSubscriber<GameObject?, string>("Glamourer.GetAllCustomizationFromCharacter");
-        _glamourerApplyAll = pi.GetIpcSubscriber<string, GameObject?, object>("Glamourer.ApplyAllToCharacter");
-        _glamourerApplyOnlyCustomization = pi.GetIpcSubscriber<string, GameObject?, object>("Glamourer.ApplyOnlyCustomizationToCharacter");
-        _glamourerApplyOnlyEquipment = pi.GetIpcSubscriber<string, GameObject?, object>("Glamourer.ApplyOnlyEquipmentToCharacter");
-        _glamourerRevertCustomization = pi.GetIpcSubscriber<GameObject?, object>("Glamourer.RevertCharacter");
+        _glamourerGetAllCustomizationLocked = pi.GetIpcSubscriber<GameObject?, uint, string>("Glamourer.GetAllCustomizationFromLockedCharacter");
+        _glamourerApplyAll = pi.GetIpcSubscriber<string, GameObject?, uint, object>("Glamourer.ApplyAllToCharacterLock");
+        _glamourerApplyOnlyCustomization = pi.GetIpcSubscriber<string, GameObject?, uint, object>("Glamourer.ApplyOnlyCustomizationToCharacterLock");
+        _glamourerApplyOnlyEquipment = pi.GetIpcSubscriber<string, GameObject?, uint, object>("Glamourer.ApplyOnlyEquipmentToCharacterLock");
+        _glamourerRevertCustomization = pi.GetIpcSubscriber<GameObject?, uint, object>("Glamourer.RevertCharacterLock");
+        _glamourerUnlock = pi.GetIpcSubscriber<Character?, uint, bool>("Glamourer.Unlock");
+        _glamourerUnlockName = pi.GetIpcSubscriber<string, uint, bool>("Glamourer.UnlockName");
 
         _heelsGetApiVersion = pi.GetIpcSubscriber<string>("HeelsPlugin.ApiVersion");
         _heelsGetOffset = pi.GetIpcSubscriber<float>("HeelsPlugin.GetOffset");
@@ -107,13 +112,11 @@ public class IpcManager : IDisposable
 
         _heelsOffsetUpdate.Subscribe(HeelsOffsetChange);
 
-        _customizePlusApiVersion = pi.GetIpcSubscriber<string>("CustomizePlus.GetApiVersion");
-        _customizePlusBranch = pi.GetIpcSubscriber<string>("CustomizePlus.GetBranch");
-        _customizePlusGetBodyScale = pi.GetIpcSubscriber<string, string>("CustomizePlus.GetTemporaryScale");
-        _customizePlusGetBodyScaleFromCharacter = pi.GetIpcSubscriber<Character?, string>("CustomizePlus.GetBodyScaleFromCharacter");
+        _customizePlusApiVersion = pi.GetIpcSubscriber<(int, int)>("CustomizePlus.GetApiVersion");
+        _customizePlusGetBodyScaleFromCharacter = pi.GetIpcSubscriber<Character?, string>("CustomizePlus.GetProfileFromCharacter");
         _customizePlusRevert = pi.GetIpcSubscriber<Character?, object>("CustomizePlus.RevertCharacter");
-        _customizePlusSetBodyScaleToCharacter = pi.GetIpcSubscriber<string, Character?, object>("CustomizePlus.SetBodyScaleToCharacter");
-        _customizePlusOnScaleUpdate = pi.GetIpcSubscriber<string?, object>("CustomizePlus.OnScaleUpdate");
+        _customizePlusSetBodyScaleToCharacter = pi.GetIpcSubscriber<string, Character?, object>("CustomizePlus.SetProfileToCharacter");
+        _customizePlusOnScaleUpdate = pi.GetIpcSubscriber<string?, object>("CustomizePlus.OnProfileUpdate");
 
         _customizePlusOnScaleUpdate.Subscribe(OnCustomizePlusScaleChange);
 
@@ -168,10 +171,13 @@ public class IpcManager : IDisposable
     {
         try
         {
-            return _glamourerApiVersions.InvokeFunc() >= 0;
+            var version = _glamourerApiVersions.InvokeFunc();
+            Logger.Debug($"Glamourer API version: {version.Item1}.{version.Item2}");
+            return true;
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.Error($"Glamourer API version could not be determined: {ex}");
             return false;
         }
     }
@@ -182,8 +188,9 @@ public class IpcManager : IDisposable
         {
             return _penumbraApiVersion.Invoke() is { Item1: 4, Item2: >= 17 };
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.Error($"Penumbra API version could not be determined: {ex}");
             return false;
         }
     }
@@ -194,8 +201,9 @@ public class IpcManager : IDisposable
         {
             return string.Equals(_heelsGetApiVersion.InvokeFunc(), "1.0.1", StringComparison.Ordinal);
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.Error($"Heels API version could not be determined: {ex}");
             return false;
         }
     }
@@ -204,21 +212,13 @@ public class IpcManager : IDisposable
     {
         try
         {
-            return string.Equals(_customizePlusApiVersion.InvokeFunc(), "1.0", StringComparison.Ordinal) && string.Equals(_customizePlusBranch.InvokeFunc(), "eqbot", StringComparison.Ordinal);
+            var version = _customizePlusApiVersion.InvokeFunc();
+            Logger.Debug($"Customize+ API version: {version.Item1}.{version.Item2}");
+            return (version.Item1 == 3 && version.Item2 >= 0);
         }
-        catch
+        catch (Exception ex)
         {
-            return false;
-        }
-    }
-    public bool CheckCustomizePlusBranch()
-    {
-        try
-        {
-            return string.Equals(_customizePlusApiVersion.InvokeFunc(), "1.0", StringComparison.Ordinal);
-        }
-        catch
-        {
+            Logger.Error($"Customize+ API version could not be determined: {ex}");
             return false;
         }
     }
@@ -287,18 +287,10 @@ public class IpcManager : IDisposable
         });
     }
 
-    public string GetCustomizePlusScale()
-    {
-        if (!CheckCustomizePlusApi()) return string.Empty;
-        var scale = _customizePlusGetBodyScale.InvokeFunc(_dalamudUtil.PlayerName);
-        if (string.IsNullOrEmpty(scale)) return string.Empty;
-        return Convert.ToBase64String(Encoding.UTF8.GetBytes(scale));
-    }
-
     public string GetCustomizePlusScaleFromCharacter(Character character)
     {
         if (!CheckCustomizePlusApi()) return string.Empty;
-        var scale = _customizePlusGetBodyScale.InvokeFunc(character.Name.TextValue);
+        var scale = _customizePlusGetBodyScaleFromCharacter.InvokeFunc(character);
         if (string.IsNullOrEmpty(scale))
         {
             Logger.Debug("C+ returned null");
@@ -339,7 +331,7 @@ public class IpcManager : IDisposable
     {
         if (!CheckGlamourerApi() || string.IsNullOrEmpty(customization)) return;
         Logger.Verbose("Glamourer applying for " + obj.Address.ToString("X"));
-        _glamourerApplyAll!.InvokeAction(customization, obj);
+        _glamourerApplyAll!.InvokeAction(customization, obj, LockCode);
     }
 
     public void GlamourerApplyOnlyEquipment(string customization, IntPtr character)
@@ -351,9 +343,9 @@ public class IpcManager : IDisposable
             if (gameObj is Character c)
             {
                 Logger.Verbose("Glamourer apply only equipment to " + c.Address.ToString("X"));
-                _glamourerApplyOnlyEquipment!.InvokeAction(customization, c);
+                _glamourerApplyOnlyEquipment!.InvokeAction(customization, c, LockCode);
             }
-        }); 
+        });
     }
 
     public void GlamourerApplyOnlyCustomization(string customization, IntPtr character)
@@ -365,7 +357,7 @@ public class IpcManager : IDisposable
             if (gameObj is Character c)
             {
                 Logger.Verbose("Glamourer apply only customization to " + c.Address.ToString("X"));
-                _glamourerApplyOnlyCustomization!.InvokeAction(customization, c);
+                _glamourerApplyOnlyCustomization!.InvokeAction(customization, c, LockCode);
             }
         });
     }
@@ -382,7 +374,9 @@ public class IpcManager : IDisposable
             {
                 Logger.Debug("Received character item in glamourer interop");
                 Logger.Debug("Charaqcter checked: " + c.Name);
-                var glamourerString = _glamourerGetAllCustomization!.InvokeFunc(c);
+                string glamourerString = string.Empty;
+                glamourerString = _glamourerGetAllCustomizationLocked!.InvokeFunc(c, LockCode);
+
                 Logger.Debug("String: " + glamourerString);
                 Logger.Debug("Successfully invoked function GetAllCuztomization");
                 byte[] bytes = Convert.FromBase64String(glamourerString);
@@ -390,8 +384,9 @@ public class IpcManager : IDisposable
             }
             return string.Empty;
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.Error("Error obtaining glamourer string: " + ex.ToString());
             return string.Empty;
         }
     }
@@ -399,7 +394,9 @@ public class IpcManager : IDisposable
     public void GlamourerRevertCharacterCustomization(GameObject character)
     {
         if (!CheckGlamourerApi()) return;
-        actionQueue.Enqueue(() => _glamourerRevertCustomization!.InvokeAction(character));
+        Logger.Debug($"Removing lock from {character.Name}...");
+        _glamourerUnlockName!.InvokeFunc(character.Name.ToString(), LockCode);
+        _glamourerRevertCustomization!.InvokeAction(character, LockCode);
     }
 
     public string PenumbraGetMetaManipulations()
@@ -443,15 +440,12 @@ public class IpcManager : IDisposable
     public void PenumbraRemoveTemporaryCollection(string characterName)
     {
         if (!CheckPenumbraApi()) return;
-        actionQueue.Enqueue(() =>
-        {
-            var collName = TempCollectionPrefix + characterName;
-            Logger.Verbose("Removing temp collection for " + collName);
-            var ret = _penumbraRemoveTemporaryMod.Invoke("Snap", collName, 0);
-            Logger.Verbose("RemoveTemporaryMod: " + ret);
-            var ret2 = _penumbraRemoveTemporaryCollection.Invoke(collName);
-            Logger.Verbose("RemoveTemporaryCollection: " + ret2);
-        });
+        var collName = TempCollectionPrefix + characterName;
+        Logger.Verbose("Removing temp collection for " + collName);
+        var ret = _penumbraRemoveTemporaryMod.Invoke("Snap", collName, 0);
+        Logger.Verbose("RemoveTemporaryMod: " + ret);
+        var ret2 = _penumbraRemoveTemporaryCollection.Invoke(collName);
+        Logger.Verbose("RemoveTemporaryCollection: " + ret2);
     }
 
     public string PenumbraResolvePath(string path)

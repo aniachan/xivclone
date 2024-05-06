@@ -38,6 +38,10 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Glamourer.Api\Glamourer.Api.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
         <Reference Include="FFXIVClientStructs">
             <HintPath>$(DalamudLibPath)FFXIVClientStructs.dll</HintPath>
             <Private>false</Private>
