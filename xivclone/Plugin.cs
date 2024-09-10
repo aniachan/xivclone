@@ -9,6 +9,7 @@ using xivclone.Utils;
 using xivclone.Managers;
 using MareSynchronos.Export;
 using xivclone.PMP;
+using Snapper.Managers;
 
 namespace xivclone
 {
@@ -17,8 +18,6 @@ namespace xivclone
         public string Name => "xivclone";
         private const string CommandName = "/clone";
 
-        public DalamudPluginInterface PluginInterface { get; init; }
-        private ICommandManager CommandManager { get; init; }
         public Configuration Configuration { get; init; }
         public IObjectTable Objects { get; init; }
         public WindowSystem WindowSystem = new("xivclone");
@@ -32,24 +31,28 @@ namespace xivclone
         private ConfigWindow ConfigWindow { get; init; }
         private MainWindow MainWindow { get; init; }
 
+        [PluginService] public static IPluginLog Log { get; private set; } = null!;
+        [PluginService] public static ICommandManager CommandManager { get; private set; } = null!;
+        [PluginService] public static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
+        //[PluginService] public static Configuration Configuration { get; private set; } = null!;
+
+        //public IPluginLog PluginLog { get; private set; } = null!;
+        //public static object Log { get; internal set; }
+
         public Plugin(
-            [RequiredVersion("1.0")] DalamudPluginInterface pluginInterface,
-            [RequiredVersion("1.0")] ICommandManager commandManager,
-            [RequiredVersion("1.0")] IFramework framework,
-            [RequiredVersion("1.0")] IObjectTable objectTable,
-            [RequiredVersion("1.0")] IClientState clientState,
-            [RequiredVersion("1.0")] ICondition condition,
-            [RequiredVersion("1.0")] IChatGui chatGui)
+            IFramework framework,
+            IObjectTable objectTable,
+            IClientState clientState,
+            ICondition condition,
+            IChatGui chatGui)
         {
-            this.PluginInterface = pluginInterface;
-            this.CommandManager = commandManager;
             this.Objects = objectTable;
 
             this.DalamudUtil = new DalamudUtil(clientState, objectTable, framework, condition, chatGui);
-            this.IpcManager = new IpcManager(pluginInterface, this.DalamudUtil);
+            this.IpcManager = new IpcManager(PluginInterface, this.DalamudUtil);
 
-            this.Configuration = this.PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
-            this.Configuration.Initialize(this.PluginInterface);
+            Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+            Configuration.Initialize(PluginInterface);
 
             this.SnapshotManager = new SnapshotManager(this);
             this.MCDFManager = new MareCharaFileManager(this);
@@ -60,27 +63,28 @@ namespace xivclone
             WindowSystem.AddWindow(ConfigWindow);
             WindowSystem.AddWindow(MainWindow);
 
-            this.CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
+            CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
             {
                 HelpMessage = "Opens main xivclone interface"
             });
 
-            this.PluginInterface.UiBuilder.Draw += DrawUI;
-            this.PluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
-            this.PluginInterface.UiBuilder.DisableGposeUiHide = true;
+            PluginInterface.UiBuilder.Draw += DrawUI;
+            PluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
+            PluginInterface.UiBuilder.DisableGposeUiHide = true;
+            PluginInterface.UiBuilder.OpenMainUi += ToggleMainUI;
         }
 
         public void Dispose()
         {
             this.WindowSystem.RemoveAllWindows();
-            this.CommandManager.RemoveHandler(CommandName);
+            CommandManager.RemoveHandler(CommandName);
             this.SnapshotManager.RevertAllSnapshots();
         }
 
         private void OnCommand(string command, string args)
         {
             // in response to the slash command, just display our main ui
-            MainWindow.IsOpen = true;
+            ToggleMainUI();
         }
 
         private void DrawUI()
@@ -93,5 +97,7 @@ namespace xivclone
         {
             ConfigWindow.IsOpen = true;
         }
+
+        public void ToggleMainUI() => MainWindow.Toggle();
     }
 }

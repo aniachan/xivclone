@@ -15,10 +15,10 @@ public class ConfigWindow : Window, IDisposable
 
     public ConfigWindow(Plugin plugin) : base(
         "xivclone Settings",
-        ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
-        ImGuiWindowFlags.NoScrollWithMouse)
+        ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
+        ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoResize)
     {
-        this.Size = new Vector2(500, 75);
+        this.Size = new Vector2(500, 115);
         this.SizeCondition = ImGuiCond.Always;
 
         this.Configuration = plugin.Configuration;
@@ -51,5 +51,14 @@ public class ConfigWindow : Window, IDisposable
             });
         }
         ImGui.PopFont();
+
+        ImGui.Text("Glamourer design fallback string (Temp until GlamourerAPI workaround)");
+        string fallbackString = Configuration.FallBackGlamourerString;
+        ImGui.InputText("##input-format", ref fallbackString, 2500);
+        if (fallbackString != Configuration.FallBackGlamourerString)
+        {
+            Configuration.FallBackGlamourerString = fallbackString;
+            Configuration.Save();
+        }
     }
 }

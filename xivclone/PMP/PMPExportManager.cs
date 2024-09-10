@@ -51,7 +51,8 @@ namespace xivclone.PMP
             //meta.json
             PMPMetadata metadata = new PMPMetadata();
             metadata.Name = snapshotName;
-            using(FileStream stream = new FileStream(Path.Combine(workingDirectory, "meta.json"), FileMode.Create))
+            metadata.Author = $"not {snapshotName} anymore :3";
+            using (FileStream stream = new FileStream(Path.Combine(workingDirectory, "meta.json"), FileMode.Create))
             {
                 JsonSerializer.Serialize(stream, metadata);
             }

@@ -11,7 +11,7 @@ namespace xivclone.PMP
         public int FileVersion { get; set; } = 3;
         public string Name { get; set; } = "";
         public string Author { get; set; } = "XIVxivclone";
-        public string Description { get; set; } = "Mod generated from xivclone snapshot";
+        public string Description { get; set; } = "Yoink :3";
         public string Version { get; set; } = "1.0.0";
         public string Website { get; set; } = "";
         public string[] ModTags { get; set; } = { };
