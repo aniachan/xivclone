@@ -19,13 +19,15 @@ using System.IO;
 using System.Text.Json;
 using xivclone.Interop;
 using Dalamud.Utility;
+using System.Text.Encodings.Web;
+using System.Text.Unicode;
 
 namespace xivclone.Managers
 {
     public class SnapshotManager
     {
         private Plugin Plugin;
-        private List<ICharacter> tempCollections = new();
+        private List<Tuple<ICharacter, Guid>> tempCollections = new();
 
         public SnapshotManager(Plugin plugin)
         {
@@ -37,9 +39,10 @@ namespace xivclone.Managers
         {
             foreach(var character in tempCollections)
             {
-                Plugin.IpcManager.PenumbraRemoveTemporaryCollection(character.Name.TextValue);
-                Plugin.IpcManager.GlamourerRevertCharacterCustomization(character);
-                Plugin.IpcManager.CustomizePlusRevert(character.Address);
+                Logger.Warn($"Removing collection for character {character.Item1.Name.TextValue} and uuid {character.Item2}");
+                Plugin.IpcManager.PenumbraRemoveTemporaryCollection(character.Item1.Name.TextValue, character.Item2);
+                Plugin.IpcManager.GlamourerRevertCharacterCustomization(character.Item1);
+                Plugin.IpcManager.CustomizePlusRevert(character.Item1.Address);
             }
             tempCollections.Clear();
         }
@@ -168,8 +171,12 @@ namespace xivclone.Managers
                     File.WriteAllText(Path.Combine(path, "customizePlus.json"), data);
                 }
             }
-
-            string infoJson = JsonSerializer.Serialize(snapshotInfo);
+                var serializerOptions = new JsonSerializerOptions
+                {
+                    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                    WriteIndented = true
+                };
+            string infoJson = JsonSerializer.Serialize(snapshotInfo, serializerOptions);
             File.WriteAllText(Path.Combine(path, "snapshot.json"), infoJson);
 
             return true;
@@ -184,7 +191,12 @@ namespace xivclone.Managers
                 Logger.Warn("No snapshot json found, aborting");
                 return false;
             }
-            SnapshotInfo? snapshotInfo = JsonSerializer.Deserialize<SnapshotInfo>(infoJson);
+            var serializerOptions = new JsonSerializerOptions
+            {
+                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                WriteIndented = true
+            };
+            SnapshotInfo? snapshotInfo = JsonSerializer.Deserialize<SnapshotInfo>(infoJson, serializerOptions);
             if(snapshotInfo == null)
             {
                 Logger.Warn("Failed to deserialize snapshot json, aborting");
@@ -202,11 +214,20 @@ namespace xivclone.Managers
             }
             Logger.Debug($"Applied {moddedPaths.Count} replacements");
 
-            Plugin.IpcManager.PenumbraRemoveTemporaryCollection(characterApplyTo.Name.TextValue);
-            Plugin.IpcManager.PenumbraSetTemporaryMods(characterApplyTo, objIdx, moddedPaths, snapshotInfo.ManipulationString);
-            if (!tempCollections.Contains(characterApplyTo))
+            foreach (var character in tempCollections)
             {
-                tempCollections.Add(characterApplyTo);
+                Logger.Warn($"Removing collection for character {character.Item1.Name.TextValue} and uuid {character.Item2}");
+                if (character.Item1.Name.TextValue == characterApplyTo.Name.TextValue)
+                {
+                    Plugin.IpcManager.PenumbraRemoveTemporaryCollection(characterApplyTo.Name.TextValue, character.Item2);
+                }
+            }
+            Guid collectionId = Plugin.IpcManager.PenumbraSetTemporaryMods(characterApplyTo, objIdx, moddedPaths, snapshotInfo.ManipulationString);
+            // Check if the collection already contains the tuple
+            if (!tempCollections.Contains(Tuple.Create(characterApplyTo, collectionId)))
+            {
+                // Add the tuple to the collection
+                tempCollections.Add(Tuple.Create(characterApplyTo, collectionId));
             }
 
             //Apply Customize+ if it exists and C+ is installed
@@ -220,6 +241,7 @@ namespace xivclone.Managers
             }
 
             //Apply glamourer string
+            Logger.Info($"Glamourer string: {snapshotInfo.GlamourerString}");
             Plugin.IpcManager.GlamourerApplyAll(snapshotInfo.GlamourerString, characterApplyTo);
 
             return true;
