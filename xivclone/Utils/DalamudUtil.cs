@@ -11,6 +11,7 @@ using Dalamud.Game.Gui;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using GameObject = FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject;
 
 namespace xivclone.Utils;
@@ -63,13 +64,14 @@ public class DalamudUtil : IDisposable
         _framework = framework;
         _condition = condition;
         _chatGui = chatGui;
+
         _clientState.Login += OnLogin;
         _clientState.Logout += OnLogout;
         _framework.Update += FrameworkOnUpdate;
-        if (IsLoggedIn)
+
+        if (_clientState.IsLoggedIn)
         {
-            classJobId = _clientState.LocalPlayer!.ClassJob.RowId;
-            OnLogin();
+            _framework.RunOnFrameworkThread(OnLogin);
         }
     }
 
@@ -158,6 +160,8 @@ public class DalamudUtil : IDisposable
 
     private void OnLogin()
     {
+        // Moved this to framework thread
+        classJobId = _clientState.LocalPlayer!.ClassJob.RowId;
         LogIn?.Invoke();
     }
 
@@ -199,7 +203,7 @@ public class DalamudUtil : IDisposable
     public IntPtr PlayerPointer => _clientState.LocalPlayer?.Address ?? IntPtr.Zero;
 
     public IPlayerCharacter PlayerCharacter => _clientState.LocalPlayer!;
-
+    
     public bool IsInGpose => _objectTable[201] != null;
 
     public List<IPlayerCharacter> GetPlayerCharacters()
