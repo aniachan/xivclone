@@ -204,7 +204,8 @@ public class DalamudUtil : IDisposable
 
     public IPlayerCharacter PlayerCharacter => _clientState.LocalPlayer!;
     
-    public bool IsInGpose => _objectTable[201] != null;
+    public bool IsInGpose
+        => _clientState.IsGPosing;
 
     public List<IPlayerCharacter> GetPlayerCharacters()
     {

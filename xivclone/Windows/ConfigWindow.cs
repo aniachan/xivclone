@@ -52,13 +52,26 @@ public class ConfigWindow : Window, IDisposable
         }
         ImGui.PopFont();
 
-        ImGui.Text("Glamourer design fallback string (Temp until GlamourerAPI workaround)");
-        string fallbackString = Configuration.FallBackGlamourerString;
-        ImGui.InputText("##input-format", ref fallbackString, 2500);
-        if (fallbackString != Configuration.FallBackGlamourerString)
+        // Store current config value in a local variable
+        bool copyGlamourerString = Configuration.CopyGlamourerString;
+
+        // Render checkbox and detect changes
+        if (ImGui.Checkbox("Copy Glamourer string to clipboard", ref copyGlamourerString))
         {
-            Configuration.FallBackGlamourerString = fallbackString;
+            // If changed, update config and save
+            Configuration.CopyGlamourerString = copyGlamourerString;
             Configuration.Save();
         }
+
+        // Description text
+        if (Configuration.CopyGlamourerString)
+        {
+            ImGui.TextWrapped("Glamourer string will be copied automatically.");
+        }
+        else
+        {
+            ImGui.TextWrapped("Glamourer string copy disabled.");
+        }
+
     }
 }

@@ -2,12 +2,9 @@ using xivclone.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using xivclone.Utils;
 using System.Text.Json;
-using System.ComponentModel.Design;
 using System.IO.Compression;
 
 namespace xivclone.PMP
@@ -20,7 +17,7 @@ namespace xivclone.PMP
             this.plugin = plugin;
         }
 
-        public void SnapshotToPMP(string snapshotPath)
+        public string SnapshotToPMP(string snapshotPath)
         {
             Logger.Debug($"Operating on {snapshotPath}");
             //read snapshot
@@ -28,13 +25,13 @@ namespace xivclone.PMP
             if (infoJson == null)
             {
                 Logger.Warn("No snapshot json found, aborting");
-                return;
+                return "";
             }
             SnapshotInfo? snapshotInfo = JsonSerializer.Deserialize<SnapshotInfo>(infoJson);
             if (snapshotInfo == null)
             {
                 Logger.Warn("Failed to deserialize snapshot json, aborting");
-                return;
+                return "";
             }
 
             //begin building PMP
@@ -94,8 +91,10 @@ namespace xivclone.PMP
 
             //cleanup
             Directory.Delete(workingDirectory, true);
-        }
 
+            //return glamourer string
+            return snapshotInfo.GlamourerString;
+        }
 
         // Decompress a base64 encoded string to the given type and a prepended version byte if possible.
         // On failure, data will be default and version will be byte.MaxValue.

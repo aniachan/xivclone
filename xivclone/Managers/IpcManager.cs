@@ -7,21 +7,14 @@ using Action = System.Action;
 using System.Collections.Concurrent;
 using System.Text;
 using Penumbra.Api.Enums;
-using Penumbra.Api.Helpers;
 using xivclone.Utils;
-using System.Security;
-using Glamourer.Api.Helpers;
 using Penumbra.Api.IpcSubscribers;
 using System.Linq;
-//using Penumbra.Api.IpcSubscribers.Legacy;
-//using Glamourer.Api.IpcSubscribers.Legacy;
-using Microsoft.Extensions.Logging;
 using Glamourer.Api.IpcSubscribers;
 using Glamourer.Api.Enums;
-using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using Dalamud.Utility;
-using xivclone.Utils;
 using xivclone;
+using System.Threading.Tasks;
 
 namespace Snapper.Managers;
 
@@ -29,9 +22,6 @@ public delegate void PenumbraRedrawEvent(IntPtr address, int objTblIdx);
 public delegate void HeelsOffsetChange(float change);
 public delegate void PenumbraResourceLoadEvent(IntPtr drawObject, string gamePath, string filePath);
 public delegate void CustomizePlusScaleChange(string? scale);
-
-
-
 
 public class IpcManager : IDisposable
 {
@@ -67,19 +57,18 @@ public class IpcManager : IDisposable
     private readonly AssignTemporaryCollection _penumbraAssignTemporaryCollection;
     private readonly ReverseResolvePlayerPath _reverseResolvePlayer;
 
-    private readonly ICallGateSubscriber<string> _customizePlusApiVersion;
-    private readonly ICallGateSubscriber<string> _customizePlusBranch;
-    private readonly ICallGateSubscriber<string, string> _customizePlusGetBodyScale;
-    private readonly ICallGateSubscriber<ICharacter?, string> _customizePlusGetBodyScaleFromCharacter;
-    private readonly ICallGateSubscriber<string, ICharacter?, object> _customizePlusSetBodyScaleToCharacter;
-    private readonly ICallGateSubscriber<ICharacter?, object> _customizePlusRevert;
-    private readonly ICallGateSubscriber<string?, object> _customizePlusOnScaleUpdate;
+    private readonly ICallGateSubscriber<(int, int)> _customizePlusApiVersion;
+    private readonly ICallGateSubscriber<ushort, (int, Guid?)> _customizePlusGetActiveProfile;
+    private readonly ICallGateSubscriber<Guid, (int, string?)> _customizePlusGetProfileById;
+    private readonly ICallGateSubscriber<ushort, Guid, object> _customizePlusOnScaleUpdate;
+    private readonly ICallGateSubscriber<ushort, int> _customizePlusRevertCharacter;
+    private readonly ICallGateSubscriber<ushort, string, (int, Guid?)> _customizePlusSetBodyScaleToCharacter;
+    private readonly ICallGateSubscriber<Guid, int> _customizePlusDeleteByUniqueId;
 
     private readonly DalamudUtil _dalamudUtil;
     private readonly ConcurrentQueue<Action> actionQueue = new();
 
     private Configuration _configuration;
-    private string backupBase64 = ""; // this is dumb, should be removed ^^'
     private readonly uint LockCode = 0x6D617265;
 
     public IpcManager(IDalamudPluginInterface pi, DalamudUtil dalamudUtil)
@@ -118,13 +107,13 @@ public class IpcManager : IDisposable
         _glamourerApplyAll = new ApplyState(pi);
         _glamourerRevertCustomization = new RevertState(pi);
 
-        _customizePlusApiVersion = pi.GetIpcSubscriber<string>("CustomizePlus.GetApiVersion");
-        _customizePlusBranch = pi.GetIpcSubscriber<string>("CustomizePlus.GetBranch");
-        _customizePlusGetBodyScale = pi.GetIpcSubscriber<string, string>("CustomizePlus.GetTemporaryScale");
-        _customizePlusGetBodyScaleFromCharacter = pi.GetIpcSubscriber<ICharacter?, string>("CustomizePlus.GetBodyScaleFromCharacter");
-        _customizePlusRevert = pi.GetIpcSubscriber<ICharacter?, object>("CustomizePlus.RevertCharacter");
-        _customizePlusSetBodyScaleToCharacter = pi.GetIpcSubscriber<string, ICharacter?, object>("CustomizePlus.SetBodyScaleToCharacter");
-        _customizePlusOnScaleUpdate = pi.GetIpcSubscriber<string?, object>("CustomizePlus.OnScaleUpdate");
+        _customizePlusApiVersion = pi.GetIpcSubscriber<(int, int)>("CustomizePlus.General.GetApiVersion");
+        _customizePlusGetActiveProfile = pi.GetIpcSubscriber<ushort, (int, Guid?)>("CustomizePlus.Profile.GetActiveProfileIdOnCharacter");
+        _customizePlusGetProfileById = pi.GetIpcSubscriber<Guid, (int, string?)>("CustomizePlus.Profile.GetByUniqueId");
+        _customizePlusRevertCharacter = pi.GetIpcSubscriber<ushort, int>("CustomizePlus.Profile.DeleteTemporaryProfileOnCharacter");
+        _customizePlusSetBodyScaleToCharacter = pi.GetIpcSubscriber<ushort, string, (int, Guid?)>("CustomizePlus.Profile.SetTemporaryProfileOnCharacter");
+        _customizePlusOnScaleUpdate = pi.GetIpcSubscriber<ushort, Guid, object>("CustomizePlus.Profile.OnUpdate");
+        _customizePlusDeleteByUniqueId = pi.GetIpcSubscriber<Guid, int>("CustomizePlus.Profile.DeleteTemporaryProfileByUniqueId");
 
         _customizePlusOnScaleUpdate.Subscribe(OnCustomizePlusScaleChange);
 
@@ -212,18 +201,15 @@ public class IpcManager : IDisposable
     {
         try
         {
-            return string.Equals(_customizePlusApiVersion.InvokeFunc(), "1.0", StringComparison.Ordinal) && string.Equals(_customizePlusBranch.InvokeFunc(), "eqbot", StringComparison.Ordinal);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-    public bool CheckCustomizePlusBranch()
-    {
-        try
-        {
-            return string.Equals(_customizePlusApiVersion.InvokeFunc(), "1.0", StringComparison.Ordinal);
+            var version = _customizePlusApiVersion.InvokeFunc();
+
+            if (version.Item1 == 6 && version.Item2 >= 0)
+            { 
+                return true;
+            } else
+            {
+                return false;
+            }
         }
         catch
         {
@@ -260,24 +246,17 @@ public class IpcManager : IDisposable
         _penumbraModSettingChanged.Dispose();
     }
 
-    public string GetCustomizePlusScale()
-    {
-        if (!CheckCustomizePlusApi()) return string.Empty;
-        var scale = _customizePlusGetBodyScale.InvokeFunc(_dalamudUtil.PlayerName);
-        if (string.IsNullOrEmpty(scale)) return string.Empty;
-        return Convert.ToBase64String(Encoding.UTF8.GetBytes(scale));
-    }
-
     public string GetCustomizePlusScaleFromCharacter(ICharacter character)
     {
         if (!CheckCustomizePlusApi()) return string.Empty;
-        var scale = _customizePlusGetBodyScale.InvokeFunc(character.Name.ToString());
-        if (string.IsNullOrEmpty(scale))
-        {
-            Logger.Debug("C+ returned null");
-            return string.Empty;
-        }
-        return scale;
+
+        var res = _customizePlusGetActiveProfile.InvokeFunc(character.ObjectIndex);
+        Logger.Debug("CustomizePlus GetActiveProfile returned {err}", res.Item1.ToString());
+        if (res.Item1 != 0 || res.Item2 == null) return string.Empty;
+        var scale = _customizePlusGetProfileById.InvokeFunc(res.Item2.Value).Item2;
+
+        if (string.IsNullOrEmpty(scale)) return string.Empty;
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(scale));
     }
 
     public void CustomizePlusSetBodyScale(IntPtr character, string scale)
@@ -288,8 +267,17 @@ public class IpcManager : IDisposable
             var gameObj = _dalamudUtil.CreateGameObject(character);
             if (gameObj is ICharacter c)
             {
+                string decodedScale = Encoding.UTF8.GetString(Convert.FromBase64String(scale));
+
                 Logger.Verbose("CustomizePlus applying for " + c.Address.ToString("X"));
-                _customizePlusSetBodyScaleToCharacter!.InvokeAction(scale, c);
+
+                if (decodedScale.IsNullOrEmpty())
+                {
+                    _customizePlusRevertCharacter!.InvokeFunc(c.ObjectIndex);
+                    return;
+                }
+
+                _customizePlusSetBodyScaleToCharacter!.InvokeAction(c.ObjectIndex, decodedScale);
             }
         });
     }
@@ -303,7 +291,12 @@ public class IpcManager : IDisposable
             if (gameObj is ICharacter c)
             {
                 Logger.Verbose("CustomizePlus reverting for " + c.Address.ToString("X"));
-                _customizePlusRevert!.InvokeAction(c);
+
+                var res = _customizePlusGetActiveProfile.InvokeFunc(c.ObjectIndex);
+                Logger.Debug("CustomizePlus GetActiveProfile returned {err}", res.Item1.ToString());
+                if (res.Item1 != 0 || res.Item2 == null) return;
+
+                _customizePlusDeleteByUniqueId.InvokeFunc(res.Item2.Value);
             }
         });
     }
@@ -336,7 +329,7 @@ public class IpcManager : IDisposable
                 Logger.Debug($"Got glamourer customizations {glamourerString} for {c.Name}");
                 if (glamourerString.IsNullOrEmpty())
                 {
-                    glamourerString = _configuration.FallBackGlamourerString;
+                    glamourerString = "err";
                 }
 
                 byte[] bytes;
@@ -347,8 +340,7 @@ public class IpcManager : IDisposable
                 }
                 catch
                 {
-                    //this is dumb...
-                    bytes = Convert.FromBase64String(backupBase64);
+                    bytes = Convert.FromBase64String("ZXJy");
                 }
 
                 return Convert.ToBase64String(bytes);
@@ -486,8 +478,9 @@ public class IpcManager : IDisposable
         //_penumbraRedraw!.Invoke("self", RedrawType.Redraw);
     }
 
-    private void OnCustomizePlusScaleChange(string? scale)
+    private void OnCustomizePlusScaleChange(ushort c, Guid g)
     {
+        var scale = _customizePlusGetProfileById.InvokeFunc(g).Item2;
         if (scale != null) scale = Convert.ToBase64String(Encoding.UTF8.GetBytes(scale));
         CustomizePlusScaleChange?.Invoke(scale);
     }

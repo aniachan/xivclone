@@ -165,10 +165,10 @@ namespace xivclone.Managers
                 var data = Plugin.IpcManager.GetCustomizePlusScaleFromCharacter(character);
                 Logger.Debug(Plugin.DalamudUtil.PlayerName);
                 Logger.Debug(character.Name.TextValue);
-                Logger.Debug($"Cust+: {data}");
                 if (!data.IsNullOrEmpty())
                 {
                     File.WriteAllText(Path.Combine(path, "customizePlus.json"), data);
+                    snapshotInfo.CustomizeData = data;
                 }
             }
                 var serializerOptions = new JsonSerializerOptions
@@ -233,10 +233,9 @@ namespace xivclone.Managers
             //Apply Customize+ if it exists and C+ is installed
             if (Plugin.IpcManager.CheckCustomizePlusApi())
             {
-                if(File.Exists(Path.Combine(path, "customizePlus.json")))
+                if (snapshotInfo.CustomizeData != "")
                 {
-                    string custPlusData = File.ReadAllText(Path.Combine(path, "customizePlus.json"));
-                    Plugin.IpcManager.CustomizePlusSetBodyScale(characterApplyTo.Address, custPlusData);
+                    Plugin.IpcManager.CustomizePlusSetBodyScale(characterApplyTo.Address, snapshotInfo.CustomizeData);
                 }
             }
 

@@ -1,15 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using Dalamud.Game.ClientState.Objects.Enums;
-using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Interface.Windowing;
-using Dalamud.Logging;
 using ImGuiNET;
-using ImGuiScene;
-using LZ4;
 using xivclone.Utils;
 
 namespace xivclone.Windows;
@@ -79,7 +73,18 @@ public partial class MainWindow : Window, IDisposable
 
                 if (Directory.Exists(path))
                 {
-                    Plugin.PMPExportManager.SnapshotToPMP(path);
+                    var glamourerString = Plugin.PMPExportManager.SnapshotToPMP(path);
+                    if (glamourerString != "")
+                    {
+                        if (Plugin.Configuration.CopyGlamourerString)
+                        {
+                            ImGui.SetClipboardText(glamourerString);
+                        }
+                    }
+                    else
+                    {
+                        Logger.Error("Failed to export snapshot as PMP");
+                    }
                 }
             }, Plugin.Configuration.WorkingDirectory);
         }
