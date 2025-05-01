@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "xivclone": {
+      "commandName": "Project",
+      "hotReloadEnabled": false
+    }
+  }
+}

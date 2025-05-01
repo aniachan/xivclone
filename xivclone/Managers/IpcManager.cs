@@ -251,7 +251,7 @@ public class IpcManager : IDisposable
         if (!CheckCustomizePlusApi()) return string.Empty;
 
         var res = _customizePlusGetActiveProfile.InvokeFunc(character.ObjectIndex);
-        Logger.Debug("CustomizePlus GetActiveProfile returned {err}", res.Item1.ToString());
+        Logger.Debug($"CustomizePlus GetActiveProfile returned {res.Item1.ToString()}");
         if (res.Item1 != 0 || res.Item2 == null) return string.Empty;
         var scale = _customizePlusGetProfileById.InvokeFunc(res.Item2.Value).Item2;
 

@@ -406,8 +406,13 @@ namespace xivclone.Managers
 
         private void AddReplacementsFromTexture(string texPath, List<FileReplacement> replacements, int objIdx, int inheritanceLevel = 0, bool doNotReverseResolve = true)
         {
+            if (string.IsNullOrEmpty(texPath) || texPath.Any(c => c < 32 || c > 126)) // Check for invalid characters
+            {
+                Logger.Warn($"Invalid texture path: {texPath}");
+                return;
+            }
+
             Logger.Debug($"Adding replacement for texture {texPath}");
-            if (string.IsNullOrEmpty(texPath)) return;
 
             if(replacements.Any(c => c.GamePaths.Contains(texPath, StringComparer.Ordinal)))
             {
@@ -416,17 +421,11 @@ namespace xivclone.Managers
             }
 
             var texFileReplacement = CreateFileReplacement(texPath, objIdx, doNotReverseResolve);
-            //DebugPrint(texFileReplacement, objectKind, "Texture", inheritanceLevel);
-
             AddFileReplacement(replacements, texFileReplacement);
 
             if (texPath.Contains("/--", StringComparison.Ordinal)) return;
 
-            var texDx11Replacement =
-                CreateFileReplacement(texPath.Insert(texPath.LastIndexOf('/') + 1, "--"), objIdx, doNotReverseResolve);
-
-            //DebugPrint(texDx11Replacement, objectKind, "Texture (DX11)", inheritanceLevel);
-
+            var texDx11Replacement = CreateFileReplacement(texPath.Insert(texPath.LastIndexOf('/') + 1, "--"), objIdx, doNotReverseResolve);
             AddFileReplacement(replacements, texDx11Replacement);
         }
 
@@ -454,12 +453,11 @@ namespace xivclone.Managers
 
                 AddReplacementsFromRenderModel(mainHandWeapon, replacements, objIdx, 0);
 
-                /*
-                foreach (var item in replacements)
+                /*foreach (var item in replacements)
                 {
                     _transientResourceManager.RemoveTransientResource(charaPointer, item);
-                }
-                */
+                }*/
+                
                 /*
                 foreach (var item in _transientResourceManager.GetTransientResources((IntPtr)weaponObject))
                 {
@@ -467,7 +465,6 @@ namespace xivclone.Managers
                     AddReplacement(item, objectKind, previousData, 1, true);
                 }
                 */
-
 
                 if (weaponObject->NextSibling != (IntPtr)weaponObject)
                 {
@@ -492,20 +489,54 @@ namespace xivclone.Managers
             AddReplacementSkeleton(((Interop.HumanExt*)human)->Human.RaceSexId, objIdx, replacements);
             try
             {
-                AddReplacementsFromTexture(new ByteString(((Interop.HumanExt*)human)->Decal->FileName()).ToString(), replacements, objIdx, 0, false);
+                var decal = ((Interop.HumanExt*)human)->Decal;
+                if (decal != null)
+                {
+                    var fileName = decal->FileName();
+                    if (fileName != null)
+                    {
+                        AddReplacementsFromTexture(new ByteString(fileName).ToString(), replacements, objIdx, 0, false);
+                    }
+                    else
+                    {
+                        Logger.Debug("Decal FileName was null");
+                    }
+                }
+                else
+                {
+                    Logger.Debug("Decal pointer was null");
+                }
             }
             catch
             {
-                Logger.Warn("Could not get Decal data");
+                Logger.Warn("Could not get Decal data. Possible memory access issue?");
             }
+
             try
             {
-                AddReplacementsFromTexture(new ByteString(((Interop.HumanExt*)human)->LegacyBodyDecal->FileName()).ToString(), replacements, objIdx, 0, false);
+                var legacyDecal = ((Interop.HumanExt*)human)->LegacyBodyDecal;
+                if (legacyDecal != null)
+                {
+                    var fileName = legacyDecal->FileName();
+                    if (fileName != null)
+                    {
+                        AddReplacementsFromTexture(new ByteString(fileName).ToString(), replacements, objIdx, 0, false);
+                    }
+                    else
+                    {
+                        Logger.Debug("Legacy Body Decal FileName was null");
+                    }
+                }
+                else
+                {
+                    Logger.Debug("Legacy Body Decal pointer was null");
+                }
             }
             catch
             {
-                Logger.Warn("Could not get Legacy Body Decal Data");
+                Logger.Warn("Could not get Legacy Body Decal data. Possible memory access issue?");
             }
+
             /*
             foreach (var item in previousData.FileReplacements[objectKind])
             {
