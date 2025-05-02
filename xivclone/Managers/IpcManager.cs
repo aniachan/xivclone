@@ -14,7 +14,6 @@ using Glamourer.Api.IpcSubscribers;
 using Glamourer.Api.Enums;
 using Dalamud.Utility;
 using xivclone;
-using System.Threading.Tasks;
 
 namespace Snapper.Managers;
 
@@ -71,6 +70,8 @@ public class IpcManager : IDisposable
     private Configuration _configuration;
     private readonly uint LockCode = 0x6D617265;
 
+    public bool _customizeAniVer = false;
+
     public IpcManager(IDalamudPluginInterface pi, DalamudUtil dalamudUtil)
     {
         Logger.Verbose("Creating " + nameof(IpcManager));
@@ -114,12 +115,13 @@ public class IpcManager : IDisposable
         _customizePlusSetBodyScaleToCharacter = pi.GetIpcSubscriber<ushort, string, (int, Guid?)>("CustomizePlus.Profile.SetTemporaryProfileOnCharacter");
         _customizePlusOnScaleUpdate = pi.GetIpcSubscriber<ushort, Guid, object>("CustomizePlus.Profile.OnUpdate");
         _customizePlusDeleteByUniqueId = pi.GetIpcSubscriber<Guid, int>("CustomizePlus.Profile.DeleteTemporaryProfileByUniqueId");
-
+        
         _customizePlusOnScaleUpdate.Subscribe(OnCustomizePlusScaleChange);
 
         if (Initialized)
         {
             PenumbraInitialized?.Invoke();
+            CheckCustomizePlusApi();
         }
 
         _dalamudUtil = dalamudUtil;
@@ -204,7 +206,11 @@ public class IpcManager : IDisposable
             var version = _customizePlusApiVersion.InvokeFunc();
 
             if (version.Item1 == 6 && version.Item2 >= 0)
-            { 
+            {
+                if (version.Item2 >= 100)
+                {
+                    _customizeAniVer = true;
+                }
                 return true;
             } else
             {
@@ -251,7 +257,7 @@ public class IpcManager : IDisposable
         if (!CheckCustomizePlusApi()) return string.Empty;
 
         var res = _customizePlusGetActiveProfile.InvokeFunc(character.ObjectIndex);
-        Logger.Debug($"CustomizePlus GetActiveProfile returned {res.Item1.ToString()}");
+        Logger.Debug($"CustomizePlus GetActiveProfile returned {res.Item2.ToString()}");
         if (res.Item1 != 0 || res.Item2 == null) return string.Empty;
         var scale = _customizePlusGetProfileById.InvokeFunc(res.Item2.Value).Item2;
 

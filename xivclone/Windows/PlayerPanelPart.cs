@@ -27,7 +27,20 @@ namespace xivclone.Windows
 
         private void DrawPlayerPanel()
         {
-            ImGui.Text("Save snapshot of player ");
+            if (!Plugin.IpcManager._customizeAniVer)
+            {
+                ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.ParsedOrange);
+                ImGui.Text("WARNING:");
+                ImGui.PopStyleColor();
+                ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudYellow);
+                ImGui.Text("You do not have Ani's Customize+ plugin installed. Scales will not be captured.");
+                ImGui.PopStyleColor();
+            } else
+            {
+                ImGui.Text("all prerequisites satisfied - happy cloning <3");
+            }
+
+                ImGui.Text("Save snapshot of player ");
             ImGui.SameLine();
             ImGui.PushFont(UiBuilder.IconFont);
 
@@ -57,6 +70,27 @@ namespace xivclone.Windows
                     // Reset flag and name
                     showSaveDialog = false;
                     saveDialogName = "";
+                }
+            }
+
+            if (Plugin.IpcManager._customizeAniVer)
+            {
+                ImGui.Text("Copy c+ to clipboard uwu");
+                ImGui.SameLine();
+                ImGui.PushFont(UiBuilder.IconFont);
+
+                try
+                {
+                    string copyIcon = FontAwesomeIcon.Clipboard.ToIconString();
+                    if (ImGui.Button(copyIcon))
+                    {
+                        var customizeString = Plugin.IpcManager.GetCustomizePlusScaleFromCharacter(player);
+                        ImGui.SetClipboardText(customizeString);
+                    }
+                }
+                finally
+                {
+                    ImGui.PopFont();
                 }
             }
 

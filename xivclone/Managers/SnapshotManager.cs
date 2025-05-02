@@ -163,6 +163,7 @@ namespace xivclone.Managers
             {
                 Logger.Debug("C+ api loaded");
                 var data = Plugin.IpcManager.GetCustomizePlusScaleFromCharacter(character);
+
                 Logger.Debug(Plugin.DalamudUtil.PlayerName);
                 Logger.Debug(character.Name.TextValue);
                 if (!data.IsNullOrEmpty())
