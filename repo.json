@@ -4,8 +4,8 @@
     "Name": "xivclone",
     "Description": "You know :p",
     "InternalName": "xivclone",
-    "AssemblyVersion": "0.0.0.7",
-    "TestingAssemblyVersion": "0.0.0.7",
+    "AssemblyVersion": "0.0.0.8",
+    "TestingAssemblyVersion": "0.0.0.8",
     "RepoUrl": "https://github.com/aniachan/xivclone",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 12,
@@ -16,9 +16,9 @@
     "LoadPriority": 69420,
     "LoadRequiredState": 2,
     "LoadSync": true,
-    "DownloadLinkInstall": "https://github.com/aniachan/xivclone/releases/download/0.0.0.7/xivclone.zip",
-    "DownloadLinkTesting": "https://github.com/aniachan/xivclone/releases/download/0.0.0.7/xivclone.zip",
-    "DownloadLinkUpdate": "https://github.com/aniachan/xivclone/releases/download/0.0.0.7/xivclone.zip",
+    "DownloadLinkInstall": "https://github.com/aniachan/xivclone/releases/download/0.0.0.8/xivclone.zip",
+    "DownloadLinkTesting": "https://github.com/aniachan/xivclone/releases/download/0.0.0.8/xivclone.zip",
+    "DownloadLinkUpdate": "https://github.com/aniachan/xivclone/releases/download/0.0.0.8/xivclone.zip",
     "IconUrl": "https://raw.githubusercontent.com/aniachan/xivclone/master/images/icon.png"
   }
 ]
