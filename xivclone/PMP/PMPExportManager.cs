@@ -17,7 +17,7 @@ namespace xivclone.PMP
             this.plugin = plugin;
         }
 
-        public string SnapshotToPMP(string snapshotPath)
+        public (string glamourerString, string pmpName) SnapshotToPMP(string snapshotPath)
         {
             Logger.Debug($"Operating on {snapshotPath}");
             //read snapshot
@@ -25,13 +25,13 @@ namespace xivclone.PMP
             if (infoJson == null)
             {
                 Logger.Warn("No snapshot json found, aborting");
-                return "";
+                return ("", "");
             }
             SnapshotInfo? snapshotInfo = JsonSerializer.Deserialize<SnapshotInfo>(infoJson);
             if (snapshotInfo == null)
             {
                 Logger.Warn("Failed to deserialize snapshot json, aborting");
-                return "";
+                return ("", "");
             }
 
             //begin building PMP
@@ -93,7 +93,7 @@ namespace xivclone.PMP
             Directory.Delete(workingDirectory, true);
 
             //return glamourer string
-            return snapshotInfo.GlamourerString;
+            return (snapshotInfo.GlamourerString, $"{pmpFileName}.pmp");
         }
 
         // Decompress a base64 encoded string to the given type and a prepended version byte if possible.

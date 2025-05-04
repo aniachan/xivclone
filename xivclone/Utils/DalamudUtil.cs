@@ -1,17 +1,13 @@
+using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Objects.SubKinds;
+using Dalamud.Game.Text.SeStringHandling;
+using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Dalamud.Game.ClientState;
-using Dalamud.Game.ClientState.Conditions;
-using Dalamud.Game.ClientState.Objects;
-using Dalamud.Game.ClientState.Objects.SubKinds;
-using Dalamud.Game.Gui;
-using Dalamud.Game.Text.SeStringHandling;
-using Dalamud.Plugin.Services;
-using FFXIVClientStructs.FFXIV.Client.Game.Character;
-using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using GameObject = FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject;
 
 namespace xivclone.Utils;
@@ -66,13 +62,21 @@ public class DalamudUtil : IDisposable
         _chatGui = chatGui;
 
         _clientState.Login += OnLogin;
-        _clientState.Logout += OnLogout;
         _framework.Update += FrameworkOnUpdate;
+        _framework.Update += InitClassJobIdOnFirstTick;
+    }
 
-        if (_clientState.IsLoggedIn)
+    private void InitClassJobIdOnFirstTick(IFramework _)
+    {
+        if (_clientState.LocalPlayer != null && _clientState.LocalPlayer.IsValid())
         {
-            _framework.RunOnFrameworkThread(OnLogin);
+            classJobId = _clientState.LocalPlayer.ClassJob.Value.JobIndex;
+            OnLogin();
+            Logger.Debug("[DalamudUtil] Initialized class job ID safely on main thread.");
         }
+
+        // Remove after first run to avoid repeated setting
+        _framework.Update -= InitClassJobIdOnFirstTick;
     }
 
     public void PrintInfoChat(string message)
@@ -129,7 +133,7 @@ public class DalamudUtil : IDisposable
         if (DateTime.Now < _delayedFrameworkUpdateCheck.AddSeconds(1)) return;
         if (_clientState.LocalPlayer != null && _clientState.LocalPlayer.IsValid())
         {
-            var newclassJobId = _clientState.LocalPlayer.ClassJob.RowId;
+            var newclassJobId = _clientState.LocalPlayer.ClassJob.Value.JobIndex;
 
             if (classJobId != newclassJobId)
             {
@@ -153,15 +157,13 @@ public class DalamudUtil : IDisposable
         _delayedFrameworkUpdateCheck = DateTime.Now;
     }
 
-    private void OnLogout(int type, int code)
+    private void OnLogout()
     {
         LogOut?.Invoke();
     }
 
     private void OnLogin()
     {
-        // Moved this to framework thread
-        classJobId = _clientState.LocalPlayer!.ClassJob.RowId;
         LogIn?.Invoke();
     }
 
@@ -203,9 +205,8 @@ public class DalamudUtil : IDisposable
     public IntPtr PlayerPointer => _clientState.LocalPlayer?.Address ?? IntPtr.Zero;
 
     public IPlayerCharacter PlayerCharacter => _clientState.LocalPlayer!;
-    
-    public bool IsInGpose
-        => _clientState.IsGPosing;
+
+    public bool IsInGpose => _objectTable[201] != null;
 
     public List<IPlayerCharacter> GetPlayerCharacters()
     {
@@ -272,7 +273,7 @@ public class DalamudUtil : IDisposable
     public void Dispose()
     {
         _clientState.Login -= OnLogin;
-        _clientState.Logout -= OnLogout;
+        //_clientState.Logout -= OnLogout;
         _framework.Update -= FrameworkOnUpdate;
     }
 }

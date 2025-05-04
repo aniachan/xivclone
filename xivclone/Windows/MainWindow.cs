@@ -73,7 +73,7 @@ public partial class MainWindow : Window, IDisposable
 
                 if (Directory.Exists(path))
                 {
-                    var glamourerString = Plugin.PMPExportManager.SnapshotToPMP(path);
+                    var (glamourerString, _) = Plugin.PMPExportManager.SnapshotToPMP(path);
                     if (glamourerString != "")
                     {
                         if (Plugin.Configuration.CopyGlamourerString)

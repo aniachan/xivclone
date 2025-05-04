@@ -1,21 +1,16 @@
-using Dalamud.Plugin;
-using Dalamud.Plugin.Ipc;
-using System;
-using System.Collections.Generic;
 using Dalamud.Game.ClientState.Objects.Types;
-using Action = System.Action;
+using Dalamud.Plugin;
+using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Concurrent;
-using System.Text;
-using Penumbra.Api.Enums;
+using System.Collections.Generic;
+using xivclone.Managers.Customize;
+using xivclone.Managers.Glamourer;
+using xivclone.Managers.Penumbra;
 using xivclone.Utils;
-using Penumbra.Api.IpcSubscribers;
-using System.Linq;
-using Glamourer.Api.IpcSubscribers;
-using Glamourer.Api.Enums;
-using Dalamud.Utility;
-using xivclone;
+using Action = System.Action;
 
-namespace Snapper.Managers;
+namespace xivclone.Managers;
 
 public delegate void PenumbraRedrawEvent(IntPtr address, int objTblIdx);
 public delegate void HeelsOffsetChange(float change);
@@ -24,476 +19,71 @@ public delegate void CustomizePlusScaleChange(string? scale);
 
 public class IpcManager : IDisposable
 {
-    private readonly IDalamudPluginInterface _pi;
-    private const string TempCollectionPrefix = "Snap_";
-
-    private readonly Glamourer.Api.IpcSubscribers.ApiVersion _glamourerApiVersion;
-    private readonly ApplyState _glamourerApplyAll;
-    private readonly GetStateBase64 _glamourerGetAllCustomization;
-    private readonly GetStateBase64Name _glamourerGetAllCustomizationName;
-    private readonly RevertState _glamourerRevertCustomization;
-    private readonly UnlockState _glamourerUnlockState;
-    private readonly UnlockStateName _glamourerUnlockStateName;
-
-    private readonly Penumbra.Api.Helpers.EventSubscriber _penumbraInit;
-    private readonly Penumbra.Api.Helpers.EventSubscriber _penumbraDispose;
-    private readonly Penumbra.Api.Helpers.EventSubscriber<nint, int> _penumbraObjectIsRedrawn;
-    private readonly Penumbra.Api.Helpers.EventSubscriber<nint, string, string> _penumbraGameObjectResourcePathResolved;
-    private readonly Penumbra.Api.Helpers.EventSubscriber<ModSettingChange, Guid, string, bool> _penumbraModSettingChanged;
-
-    private readonly GetModDirectory _penumbraResolveModDir;
-    private readonly ResolvePlayerPath _penumbraResolvePlayer;
-    private readonly ResolveGameObjectPath _penumbraResolvePlayerObject;
-    private readonly ReverseResolveGameObjectPath _penumbraReverseResolvePlayerObject;
-    private readonly GetEnabledState _penumbraEnabled;
-    private readonly RedrawObject _penumbraRedraw;
-    private readonly RedrawObject _penumbraRedrawObject;
-    private readonly GetMetaManipulations _penumbraGetGameObjectMetaManipulations;
-    private readonly AddTemporaryMod _penumbraAddTemporaryMod;
-    private readonly CreateTemporaryCollection _penumbraCreateTemporaryCollection;
-    private readonly DeleteTemporaryCollection _penumbraDeleteTemporaryCollection;
-    private readonly RemoveTemporaryMod _penumbraRemoveTemporaryMod;
-    private readonly AssignTemporaryCollection _penumbraAssignTemporaryCollection;
-    private readonly ReverseResolvePlayerPath _reverseResolvePlayer;
-
-    private readonly ICallGateSubscriber<(int, int)> _customizePlusApiVersion;
-    private readonly ICallGateSubscriber<ushort, (int, Guid?)> _customizePlusGetActiveProfile;
-    private readonly ICallGateSubscriber<Guid, (int, string?)> _customizePlusGetProfileById;
-    private readonly ICallGateSubscriber<ushort, Guid, object> _customizePlusOnScaleUpdate;
-    private readonly ICallGateSubscriber<ushort, int> _customizePlusRevertCharacter;
-    private readonly ICallGateSubscriber<ushort, string, (int, Guid?)> _customizePlusSetBodyScaleToCharacter;
-    private readonly ICallGateSubscriber<Guid, int> _customizePlusDeleteByUniqueId;
-
     private readonly DalamudUtil _dalamudUtil;
     private readonly ConcurrentQueue<Action> actionQueue = new();
 
-    private Configuration _configuration;
-    private readonly uint LockCode = 0x6D617265;
-
-    public bool _customizeAniVer = false;
+    private readonly PenumbraIpc _penumbra;
+    private readonly GlamourerIpc _glamourer;
+    private readonly CustomizeIpc _customize;
 
     public IpcManager(IDalamudPluginInterface pi, DalamudUtil dalamudUtil)
     {
-        Logger.Verbose("Creating " + nameof(IpcManager));
-        _configuration = (Configuration?)pi.GetPluginConfig();
-        _pi = pi;
-
-        _penumbraInit = Penumbra.Api.IpcSubscribers.Initialized.Subscriber(pi, () => PenumbraInit());
-        _penumbraDispose = Penumbra.Api.IpcSubscribers.Disposed.Subscriber(pi, () => PenumbraDispose());
-        _penumbraResolvePlayer = new ResolvePlayerPath(pi);
-        _penumbraResolvePlayerObject = new ResolveGameObjectPath(pi);
-        _penumbraReverseResolvePlayerObject = new ReverseResolveGameObjectPath(pi);
-        _penumbraResolveModDir = new GetModDirectory(pi);
-        _penumbraRedraw = new RedrawObject(pi);
-        _penumbraRedrawObject = new RedrawObject(pi);
-        _reverseResolvePlayer = new ReverseResolvePlayerPath(pi);
-        _penumbraObjectIsRedrawn = Penumbra.Api.IpcSubscribers.GameObjectRedrawn.Subscriber(pi, (ptr, idx) => RedrawEvent((IntPtr)ptr, idx));
-        _penumbraGetGameObjectMetaManipulations = new GetMetaManipulations(pi);
-        _penumbraAddTemporaryMod = new AddTemporaryMod(pi);
-        _penumbraCreateTemporaryCollection = new CreateTemporaryCollection(pi);
-        _penumbraDeleteTemporaryCollection = new DeleteTemporaryCollection(pi);
-        _penumbraRemoveTemporaryMod = new RemoveTemporaryMod(pi);
-        _penumbraAssignTemporaryCollection = new AssignTemporaryCollection(pi);
-        _penumbraEnabled = new GetEnabledState(pi);
-
-        _penumbraGameObjectResourcePathResolved = Penumbra.Api.IpcSubscribers.GameObjectResourcePathResolved.Subscriber(pi, (ptr, arg1, arg2) => ResourceLoaded((IntPtr)ptr, arg1, arg2));
-        _penumbraModSettingChanged = Penumbra.Api.IpcSubscribers.ModSettingChanged.Subscriber(pi, (modsetting, a, b, c) => PenumbraModSettingChangedHandler());
-
-        _glamourerApiVersion = new Glamourer.Api.IpcSubscribers.ApiVersion(pi);
-        _glamourerGetAllCustomization = new GetStateBase64(pi);
-        _glamourerGetAllCustomizationName = new GetStateBase64Name(pi);
-        _glamourerUnlockState = new UnlockState(pi);
-        _glamourerUnlockStateName = new UnlockStateName(pi);
-
-        _glamourerApplyAll = new ApplyState(pi);
-        _glamourerRevertCustomization = new RevertState(pi);
-
-        _customizePlusApiVersion = pi.GetIpcSubscriber<(int, int)>("CustomizePlus.General.GetApiVersion");
-        _customizePlusGetActiveProfile = pi.GetIpcSubscriber<ushort, (int, Guid?)>("CustomizePlus.Profile.GetActiveProfileIdOnCharacter");
-        _customizePlusGetProfileById = pi.GetIpcSubscriber<Guid, (int, string?)>("CustomizePlus.Profile.GetByUniqueId");
-        _customizePlusRevertCharacter = pi.GetIpcSubscriber<ushort, int>("CustomizePlus.Profile.DeleteTemporaryProfileOnCharacter");
-        _customizePlusSetBodyScaleToCharacter = pi.GetIpcSubscriber<ushort, string, (int, Guid?)>("CustomizePlus.Profile.SetTemporaryProfileOnCharacter");
-        _customizePlusOnScaleUpdate = pi.GetIpcSubscriber<ushort, Guid, object>("CustomizePlus.Profile.OnUpdate");
-        _customizePlusDeleteByUniqueId = pi.GetIpcSubscriber<Guid, int>("CustomizePlus.Profile.DeleteTemporaryProfileByUniqueId");
-        
-        _customizePlusOnScaleUpdate.Subscribe(OnCustomizePlusScaleChange);
-
-        if (Initialized)
-        {
-            PenumbraInitialized?.Invoke();
-            CheckCustomizePlusApi();
-        }
+        Logger.Verbose("Creating IpcManager delegator");
 
         _dalamudUtil = dalamudUtil;
+        _penumbra = new PenumbraIpc(pi, dalamudUtil, actionQueue);
+        _glamourer = new GlamourerIpc(pi, dalamudUtil, actionQueue);
+        _customize = new CustomizeIpc(pi, dalamudUtil, actionQueue);
+
         _dalamudUtil.FrameworkUpdate += HandleActionQueue;
-        _dalamudUtil.ZoneSwitchEnd += ClearActionQueue;
-
-    }
-
-    private void PenumbraModSettingChangedHandler()
-    {
-        PenumbraModSettingChanged?.Invoke();
-    }
-
-    private void ClearActionQueue()
-    {
-        actionQueue.Clear();
-    }
-
-    private void ResourceLoaded(IntPtr ptr, string arg1, string arg2)
-    {
-        if (ptr != IntPtr.Zero && string.Compare(arg1, arg2, true, System.Globalization.CultureInfo.InvariantCulture) != 0)
-        {
-            PenumbraResourceLoadEvent?.Invoke(ptr, arg1, arg2);
-        }
+        _dalamudUtil.ZoneSwitchEnd += () => actionQueue.Clear();
     }
 
     private void HandleActionQueue()
     {
-        if (actionQueue.TryDequeue(out var action))
+        if (actionQueue.TryDequeue(out var action) && action != null)
         {
-            if (action == null) return;
             Logger.Debug("Execution action in queue: " + action.Method);
             action();
         }
     }
 
-    public event VoidDelegate? PenumbraModSettingChanged;
-    public event VoidDelegate? PenumbraInitialized;
-    public event VoidDelegate? PenumbraDisposed;
-    public event PenumbraRedrawEvent? PenumbraRedrawEvent;
-    public event HeelsOffsetChange? HeelsOffsetChangeEvent;
-    public event PenumbraResourceLoadEvent? PenumbraResourceLoadEvent;
-    public event CustomizePlusScaleChange? CustomizePlusScaleChange;
-
-    public bool Initialized => CheckPenumbraApi();
-    public bool CheckGlamourerApi()
-    {
-        try
-        {
-            return _glamourerApiVersion.Invoke() is { Major: 1, Minor: >= 1 };
-        }
-        catch
-        {
-            Logger.Warn("Glamourer API was not available");
-            return false;
-        }
-    }
-
-    public bool CheckPenumbraApi()
-    {
-        bool penumbraAvailable = false;
-        try
-        {
-            var penumbraVersion = (_pi.InstalledPlugins
-                .FirstOrDefault(p => string.Equals(p.InternalName, "Penumbra", StringComparison.OrdinalIgnoreCase))
-                ?.Version ?? new Version(0, 0, 0, 0));
-            penumbraAvailable = penumbraVersion >= new Version(1, 1, 0, 0);
-            penumbraAvailable &= _penumbraEnabled.Invoke();
-            return penumbraAvailable;
-        }
-        catch
-        {
-            Logger.Warn("Penumbra API was not available");
-            return false;
-        }
-    }
-
-    public bool CheckCustomizePlusApi()
-    {
-        try
-        {
-            var version = _customizePlusApiVersion.InvokeFunc();
-
-            if (version.Item1 == 6 && version.Item2 >= 0)
-            {
-                if (version.Item2 >= 100)
-                {
-                    _customizeAniVer = true;
-                }
-                return true;
-            } else
-            {
-                return false;
-            }
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
     public void Dispose()
     {
-        Logger.Verbose("Disposing " + nameof(IpcManager));
-
-        int totalSleepTime = 0;
-        while (actionQueue.Count > 0 && totalSleepTime < 2000)
-        {
-            Logger.Verbose("Waiting for actionqueue to clear...");
-            HandleActionQueue();
-            System.Threading.Thread.Sleep(16);
-            totalSleepTime += 16;
-        }
-
-        if (totalSleepTime >= 2000)
-        {
-            Logger.Verbose("Action queue clear or not, disposing");
-        }
-
+        _penumbra.Dispose();
+        _glamourer.Dispose();
+        _customize.Dispose();
         _dalamudUtil.FrameworkUpdate -= HandleActionQueue;
-        _dalamudUtil.ZoneSwitchEnd -= ClearActionQueue;
-        actionQueue.Clear();
-
-        _penumbraGameObjectResourcePathResolved.Dispose();
-        _penumbraDispose.Dispose();
-        _penumbraInit.Dispose();
-        _penumbraObjectIsRedrawn.Dispose();
-        _penumbraModSettingChanged.Dispose();
-    }
-
-    public string GetCustomizePlusScaleFromCharacter(ICharacter character)
-    {
-        if (!CheckCustomizePlusApi()) return string.Empty;
-
-        var res = _customizePlusGetActiveProfile.InvokeFunc(character.ObjectIndex);
-        Logger.Debug($"CustomizePlus GetActiveProfile returned {res.Item2.ToString()}");
-        if (res.Item1 != 0 || res.Item2 == null) return string.Empty;
-        var scale = _customizePlusGetProfileById.InvokeFunc(res.Item2.Value).Item2;
-
-        if (string.IsNullOrEmpty(scale)) return string.Empty;
-        return Convert.ToBase64String(Encoding.UTF8.GetBytes(scale));
-    }
-
-    public void CustomizePlusSetBodyScale(IntPtr character, string scale)
-    {
-        if (!CheckCustomizePlusApi() || string.IsNullOrEmpty(scale)) return;
-        actionQueue.Enqueue(() =>
-        {
-            var gameObj = _dalamudUtil.CreateGameObject(character);
-            if (gameObj is ICharacter c)
-            {
-                string decodedScale = Encoding.UTF8.GetString(Convert.FromBase64String(scale));
-
-                Logger.Verbose("CustomizePlus applying for " + c.Address.ToString("X"));
-
-                if (decodedScale.IsNullOrEmpty())
-                {
-                    _customizePlusRevertCharacter!.InvokeFunc(c.ObjectIndex);
-                    return;
-                }
-
-                _customizePlusSetBodyScaleToCharacter!.InvokeAction(c.ObjectIndex, decodedScale);
-            }
-        });
-    }
-
-    public void CustomizePlusRevert(IntPtr character)
-    {
-        if (!CheckCustomizePlusApi()) return;
-        actionQueue.Enqueue(() =>
-        {
-            var gameObj = _dalamudUtil.CreateGameObject(character);
-            if (gameObj is ICharacter c)
-            {
-                Logger.Verbose("CustomizePlus reverting for " + c.Address.ToString("X"));
-
-                var res = _customizePlusGetActiveProfile.InvokeFunc(c.ObjectIndex);
-                Logger.Debug("CustomizePlus GetActiveProfile returned {err}", res.Item1.ToString());
-                if (res.Item1 != 0 || res.Item2 == null) return;
-
-                _customizePlusDeleteByUniqueId.InvokeFunc(res.Item2.Value);
-            }
-        });
-    }
-
-    public void GlamourerApplyAll(string? customization, ICharacter obj)
-    {
-        if (!CheckGlamourerApi() || string.IsNullOrEmpty(customization)) return;
-        Logger.Verbose("Glamourer applying for " + obj.Address.ToString("X"));
-        _glamourerApplyAll!.Invoke(customization, obj.ObjectIndex, LockCode);
-    }
-
-    public string GlamourerGetCharacterCustomization(IntPtr character)
-    {
-        object temp = "";
-        object tempGameObj = "";
-        Logger.Debug("Getting character customization");
-        if (!CheckGlamourerApi()) return string.Empty;
-        try
-        {
-            var gameObj = _dalamudUtil.CreateGameObject(character);
-            if (gameObj is ICharacter c)
-            {
-                Logger.Debug($"Attempting to unlock customization string for {c.Name}");
-                _glamourerUnlockState!.Invoke(c.ObjectIndex, LockCode);
-
-                Logger.Debug($"Attempting to get customizations for {c.Name} with ObjectIndex {c.ObjectIndex}");
-                (GlamourerApiEc apiec, string glamourerString) = _glamourerGetAllCustomization!.Invoke(c.ObjectIndex);
-                temp = glamourerString;
-                tempGameObj = c.Name;
-                Logger.Debug($"Got glamourer customizations {glamourerString} for {c.Name}");
-                if (glamourerString.IsNullOrEmpty())
-                {
-                    glamourerString = "err";
-                }
-
-                byte[] bytes;
-
-                try
-                {
-                    bytes = Convert.FromBase64String(glamourerString);
-                }
-                catch
-                {
-                    bytes = Convert.FromBase64String("ZXJy");
-                }
-
-                return Convert.ToBase64String(bytes);
-            }
-            Logger.Warn("Game object is not an ICharacter or could not retrieve customization data.");
-            return string.Empty;
-        }
-        catch (Exception ex)
-        {
-            Logger.Error($"Error occurred while getting customizations for {tempGameObj}. GlamourerString = '{temp}', Exception: {ex.Message}");
-            throw;
-            return string.Empty;
-        }
-    }
-
-    public void GlamourerRevertCharacterCustomization(IGameObject character)
-    {
-        if (!CheckGlamourerApi()) return;
-        if (character is ICharacter c)
-        {
-            _glamourerUnlockState!.Invoke(c.ObjectIndex, LockCode);
-            _glamourerRevertCustomization!.Invoke(c.ObjectIndex);
-        }
-        else
-        {
-            Logger.Error("Tried to revert a non-Character game object and failed");
-        }
-    }
-
-    public string PenumbraGetGameObjectMetaManipulations(int objIdx)
-    {
-        if (!CheckPenumbraApi()) return string.Empty;
-        return _penumbraGetGameObjectMetaManipulations.Invoke(objIdx);
-    }
-
-    public void PenumbraRedraw(IntPtr obj)
-    {
-        if (!CheckPenumbraApi()) return;
-        actionQueue.Enqueue(() =>
-        {
-            var gameObj = _dalamudUtil.CreateGameObject(obj);
-            if (gameObj != null)
-            {
-                Logger.Verbose("Redrawing " + gameObj);
-                _penumbraRedrawObject!.Invoke(gameObj.ObjectIndex, RedrawType.Redraw);
-            }
-        });
-    }
-
-    public void PenumbraRedraw(int objIdx)
-    {
-        if (!CheckPenumbraApi()) return;
-        _penumbraRedraw!.Invoke(objIdx, RedrawType.Redraw);
-    }
-
-    public void PenumbraRemoveTemporaryCollection(string characterName, Guid collectionId)
-    {
-        if (!CheckPenumbraApi()) return;
-        var collName = TempCollectionPrefix + characterName;
-        Logger.Verbose("Removing temp collection for " + collName);
-        var ret = _penumbraRemoveTemporaryMod.Invoke("Snap", collectionId, 0);
-        Logger.Verbose("RemoveTemporaryMod: " + ret);
-        var ret2 = _penumbraDeleteTemporaryCollection.Invoke(collectionId);
-        Logger.Verbose("DeleteTemporaryCollection: " + ret2);
-    }
-
-    public string PenumbraResolvePath(string path)
-    {
-        if (!CheckPenumbraApi()) return path;
-        var resolvedPath = _penumbraResolvePlayer!.Invoke(path);
-        return resolvedPath ?? path;
-    }
-
-    public string[] PenumbraReverseResolvePlayer(string path)
-    {
-        if (!CheckPenumbraApi()) return new[] { path };
-        var resolvedPaths = _reverseResolvePlayer.Invoke(path);
-        if (resolvedPaths.Length == 0)
-        {
-            resolvedPaths = new[] { path };
-        }
-        return resolvedPaths;
-    }
-
-    public string PenumbraResolvePathObject(string path, int objIdx)
-    {
-        if (!CheckPenumbraApi()) return path;
-        var resolvedPath = _penumbraResolvePlayerObject!.Invoke(path, objIdx);
-        return resolvedPath ?? path;
-    }
-
-    public string[] PenumbraReverseResolveObject(string path, int objIdx)
-    {
-        if (!CheckPenumbraApi()) return new[] { path };
-        var resolvedPaths = _penumbraReverseResolvePlayerObject.Invoke(path, objIdx);
-        if (resolvedPaths.Length == 0)
-        {
-            resolvedPaths = new[] { path };
-        }
-        return resolvedPaths;
-    }
-
-    public Guid PenumbraSetTemporaryMods(ICharacter character, int? idx, Dictionary<string, string> modPaths, string manipulationData)
-    {
-        if (!CheckPenumbraApi()) return Guid.Empty;
-        if (idx == null)
-        {
-            return Guid.Empty;
-        }
-        var collName = TempCollectionPrefix + character.Name.TextValue;
-        var ret = _penumbraCreateTemporaryCollection.Invoke(collName);
-
-        Logger.Verbose("Creating Temp Collection " + collName + ", Success: " + ret);
-        var retAssign = _penumbraAssignTemporaryCollection.Invoke(ret, idx.Value, true);
-        Logger.Verbose("Assigning Temp Collection " + collName + " to index " + idx.Value);
-        Logger.Verbose("Penumbra response" + retAssign);
-        foreach (var mod in modPaths)
-        {
-            Logger.Verbose(mod.Key + " => " + mod.Value);
-        }
-
-        var ret2 = _penumbraAddTemporaryMod.Invoke("Snap", ret, modPaths, manipulationData, 0);
-        Logger.Verbose("Setting temp mods for " + collName + ", Success: " + ret2);
-        return ret;
-    }
-
-    private void RedrawEvent(IntPtr objectAddress, int objectTableIndex)
-    {
-        PenumbraRedrawEvent?.Invoke(objectAddress, objectTableIndex);
-    }
-
-    private void PenumbraInit()
-    {
-        PenumbraInitialized?.Invoke();
-        //_penumbraRedraw!.Invoke("self", RedrawType.Redraw);
-    }
-
-    private void OnCustomizePlusScaleChange(ushort c, Guid g)
-    {
-        var scale = _customizePlusGetProfileById.InvokeFunc(g).Item2;
-        if (scale != null) scale = Convert.ToBase64String(Encoding.UTF8.GetBytes(scale));
-        CustomizePlusScaleChange?.Invoke(scale);
-    }
-
-    private void PenumbraDispose()
-    {
-        PenumbraDisposed?.Invoke();
         actionQueue.Clear();
     }
+
+    // Penumbra passthroughs
+    public void PenumbraRemoveTemporaryCollection(string name) => _penumbra.RemoveTemporaryCollection(name);
+    public void PenumbraRedraw(int objIdx) => _penumbra.Redraw(objIdx);
+    public void PenumbraRedraw(IntPtr objPtr) => _penumbra.Redraw(objPtr);
+    public string GetMetaManipulations(int objIdx) => _penumbra.GetMetaManipulations(objIdx);
+    public void PenumbraSetTempMods(ICharacter character, int? idx, Dictionary<string, string> mods, string manips) => _penumbra.SetTemporaryMods(character, idx, mods, manips);
+    public bool PenumbraInsallMod(string modPath) => _penumbra.InstallMod(modPath);
+    public bool PenumbraSetModPath(string modName, string newPath) => _penumbra.SetModPath(modName, newPath);
+
+    // Passthroughs for Penumbra path helpers
+    public string PenumbraResolvePath(string path) => _penumbra.ResolvePath(path);
+    public string PenumbraResolvePathObject(string path, int objIdx) => _penumbra.ResolvePathObject(path, objIdx);
+    public string[] PenumbraReverseResolveObject(string path, int objIdx) => _penumbra.ReverseResolveObject(path, objIdx);
+    public string[] PenumbraReverseResolvePlayer(string path) => _penumbra.ReverseResolvePlayer(path);
+
+    // Glamourer passthroughs
+    public GlamourerIpc GlamourerIpc => _glamourer;
+    public string GetGlamourerState(ICharacter c) => _glamourer.GetCharacterCustomization(c.Address);
+    public JObject? GetGlamourerStateJSON(ICharacter c) => _glamourer.GetCharacterCustomizationJson(c.Address);
+    public void ApplyGlamourerState(string? base64, ICharacter c) => _glamourer.ApplyState(base64, c);
+    public void RevertGlamourerState(IGameObject c) => _glamourer.RevertState(c);
+    public Guid AddGlamourerDesign(JObject design, string name) => _glamourer.AddDesign(design, name);
+
+    // CustomizePlus passthroughs
+    public (bool Available, bool IsAniVersion) IsCustomizePlusAvailable() => _customize.CheckApi();
+    public string GetCustomizePlusScale(ICharacter c) => _customize.GetScaleFromCharacter(c);
+    public void SetCustomizePlusScale(IntPtr address, string scale) => _customize.SetScale(address, scale);
+    public void RevertCustomizePlusScale(IntPtr address) => _customize.Revert(address);
+    public bool AddCustomizePlusTemplate(string templateData, string name) => _customize.AddTemplate(templateData, name);
 }
