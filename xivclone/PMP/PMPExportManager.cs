@@ -6,6 +6,9 @@ using System.Text;
 using xivclone.Utils;
 using System.Text.Json;
 using System.IO.Compression;
+using Newtonsoft.Json.Linq;
+using Dalamud.Utility;
+using xivclone.Interop;
 
 namespace xivclone.PMP
 {
@@ -17,7 +20,7 @@ namespace xivclone.PMP
             this.plugin = plugin;
         }
 
-        public string SnapshotToPMP(string snapshotPath)
+        public (string glamourerString, string pmpName, JObject? design, string customize) SnapshotToPMP(string snapshotPath)
         {
             Logger.Debug($"Operating on {snapshotPath}");
             //read snapshot
@@ -25,19 +28,45 @@ namespace xivclone.PMP
             if (infoJson == null)
             {
                 Logger.Warn("No snapshot json found, aborting");
-                return "";
+                return (String.Empty, String.Empty, null, String.Empty);
             }
             SnapshotInfo? snapshotInfo = JsonSerializer.Deserialize<SnapshotInfo>(infoJson);
             if (snapshotInfo == null)
             {
                 Logger.Warn("Failed to deserialize snapshot json, aborting");
-                return "";
+                return (String.Empty, String.Empty, null, String.Empty);
+            }
+
+            //Deserialize JObject of design
+            JObject? design = null;
+            try
+            {
+                if (snapshotInfo.GlamourerJSON.IsNullOrEmpty())
+                {
+                    // Attempt to convert the base64 string to JSON
+                    try
+                    {
+                        DesignParser parser = new DesignParser();
+                        design = parser.FromBase64(snapshotInfo.GlamourerString);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warn($"Failed to parse glamourer base64 as json: {ex.Message}");
+                    }
+                } else
+                {
+                    // Use the available JSON
+                    design = JObject.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(snapshotInfo.GlamourerJSON)));
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"Failed to parse glamourer json: {ex.Message}");
             }
 
             //begin building PMP
             string snapshotName = new DirectoryInfo(snapshotPath).Name;
             string pmpFileName = $"{snapshotName}_{Guid.NewGuid()}";
-
 
             string workingDirectory = Path.Combine(plugin.Configuration.WorkingDirectory, $"temp_{pmpFileName}");
             if (!Directory.Exists(workingDirectory))
@@ -78,7 +107,6 @@ namespace xivclone.PMP
             //mods
             foreach(var file in snapshotInfo.FileReplacements)
             {
-
                 string modPath = Path.Combine(snapshotPath, file.Key);
                 string destPath = Path.Combine(workingDirectory, file.Key);
                 Logger.Debug($"Copying {modPath}");
@@ -93,7 +121,7 @@ namespace xivclone.PMP
             Directory.Delete(workingDirectory, true);
 
             //return glamourer string
-            return snapshotInfo.GlamourerString;
+            return (snapshotInfo.GlamourerString, $"{pmpFileName}.pmp", design, snapshotInfo.CustomizeData);
         }
 
         // Decompress a base64 encoded string to the given type and a prepended version byte if possible.

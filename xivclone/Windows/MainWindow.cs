@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using Dalamud.Interface;
 using Dalamud.Interface.Windowing;
 using ImGuiNET;
 using xivclone.Utils;
@@ -32,9 +33,19 @@ public partial class MainWindow : Window, IDisposable
 
     public override void Draw()
     {
-        if (ImGui.Button("Show Settings"))
+        ImGui.PushFont(UiBuilder.IconFont);
+        
+        string gearIcon = FontAwesomeIcon.Cog.ToIconString();
+        try
         {
-            this.Plugin.DrawConfigUI();
+            if (ImGui.Button(gearIcon))
+            {
+                this.Plugin.DrawConfigUI();
+            }
+        }
+        finally
+        {
+            ImGui.PopFont();
         }
 
         ImGui.SameLine();
@@ -73,7 +84,7 @@ public partial class MainWindow : Window, IDisposable
 
                 if (Directory.Exists(path))
                 {
-                    var glamourerString = Plugin.PMPExportManager.SnapshotToPMP(path);
+                    var (glamourerString, _, _, _) = Plugin.PMPExportManager.SnapshotToPMP(path);
                     if (glamourerString != "")
                     {
                         if (Plugin.Configuration.CopyGlamourerString)
@@ -88,6 +99,38 @@ public partial class MainWindow : Window, IDisposable
                 }
             }, Plugin.Configuration.WorkingDirectory);
         }
+
+        // Check if the directory is set and exists
+        bool hasValidPenumbraDir = !string.IsNullOrEmpty(Plugin.Configuration.PenumbraDirectory);
+
+        // Disable the button if the directory is not valid
+        if (!hasValidPenumbraDir)
+            ImGui.BeginDisabled();
+
+        // Draw the button
+        ImGui.SameLine();
+        if (ImGui.Button("Auto-Install Existing Mod"))
+        {
+            if (Directory.Exists(Plugin.Configuration.PenumbraDirectory))
+            {
+                Plugin.FileDialogManager.OpenFolderDialog("Snapshot selection", (status, path) =>
+                {
+                    if (!status)
+                    {
+                        return;
+                    }
+
+                    if (Directory.Exists(path))
+                    {
+                        autoInstallExistingPath = path;
+                        StartInstallationProcess();
+                    }
+                }, Plugin.Configuration.WorkingDirectory);
+            }
+        }
+
+        if (!hasValidPenumbraDir)
+            ImGui.EndDisabled();
 
         ImGui.Spacing();
 

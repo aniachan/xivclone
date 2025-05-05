@@ -2,36 +2,29 @@ using Dalamud.Game.ClientState.Objects.Types;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Penumbra.Api;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Scene;
 using FFXIVClientStructs.FFXIV.Client.System.Resource;
-using Penumbra.Interop.Structs;
-using Lumina.Models.Materials;
 using xivclone.Models;
 using xivclone.Utils;
 using System.Threading;
-using Dalamud.Game.ClientState.Objects.Enums;
 using Penumbra.String;
-using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using System.IO;
 using System.Text.Json;
-using xivclone.Interop;
 using Dalamud.Utility;
 using System.Text.Encodings.Web;
-using System.Text.Unicode;
+using ImGuiNET;
+using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
+using System.Text;
 
 namespace xivclone.Managers
 {
     public class SnapshotManager
     {
         private Plugin Plugin;
-        private List<Tuple<ICharacter, Guid>> tempCollections = new();
-
+        private List<ICharacter> tempCollections = new();
         public SnapshotManager(Plugin plugin)
         {
-
             this.Plugin = plugin;
         }
 
@@ -39,10 +32,10 @@ namespace xivclone.Managers
         {
             foreach(var character in tempCollections)
             {
-                Logger.Warn($"Removing collection for character {character.Item1.Name.TextValue} and uuid {character.Item2}");
-                Plugin.IpcManager.PenumbraRemoveTemporaryCollection(character.Item1.Name.TextValue, character.Item2);
-                Plugin.IpcManager.GlamourerRevertCharacterCustomization(character.Item1);
-                Plugin.IpcManager.CustomizePlusRevert(character.Item1.Address);
+                Logger.Warn($"Removing collection for character {character.Name.TextValue}");
+                Plugin.IpcManager.PenumbraRemoveTemporaryCollection(character.Name.TextValue);
+                Plugin.IpcManager.RevertGlamourerState(character);
+                Plugin.IpcManager.RevertCustomizePlusScale(character.Address);
             }
             tempCollections.Clear();
         }
@@ -64,11 +57,11 @@ namespace xivclone.Managers
                 return false;
             }
 
-            if (!Directory.Exists(path))
-            {
-                //no existing snapshot for character, just use save mode
-                this.SaveSnapshot(character, snapshotName);
-            }
+                if (!Directory.Exists(path))
+                {
+                    //no existing snapshot for character, just use save mode
+                    this.SaveSnapshot(character, snapshotName);
+                }
 
             //Merge file replacements
             List<FileReplacement> replacements = GetFileReplacementsForCharacter(character);
@@ -106,7 +99,10 @@ namespace xivclone.Managers
             //Merge meta manips
             //Meta manipulations seem to be sent containing every mod a character has enabled, regardless of whether it's actively being used.
             //This may end up shooting me in the foot, but a newer snapshot should contain the info of an older one.
-            snapshotInfo.ManipulationString = Plugin.IpcManager.PenumbraGetGameObjectMetaManipulations(character.ObjectIndex);
+            snapshotInfo.ManipulationString = Plugin.IpcManager.GetMetaManipulations(character.ObjectIndex);
+
+            // Save the glamourer string
+            snapshotInfo.GlamourerString = Plugin.IpcManager.GetGlamourerState(character);
 
             string infoJsonWrite = JsonSerializer.Serialize(snapshotInfo);
             File.WriteAllText(Path.Combine(path, "snapshot.json"), infoJsonWrite);
@@ -114,9 +110,23 @@ namespace xivclone.Managers
             return true;
         }
 
+        public void CopyGlamourerStringToClipboard(ICharacter character)
+        {
+            var glamourerString = Plugin.IpcManager.GlamourerIpc.GetCharacterCustomization(character.Address);
+            if (string.IsNullOrEmpty(glamourerString))
+            {
+                Logger.Warn("Failed to get Glamourer string for clipboard.");
+                return;
+            }
+            ImGui.SetClipboardText(glamourerString);
+            Logger.Info($"Copied Glamourer string for {character.Name.TextValue} to clipboard.");
+        }
+
         public bool SaveSnapshot(ICharacter character, string snapshotName)
         {
             var charaName = character.Name.TextValue;
+
+            var cstring = "";
 
             var snapName = charaName + "_" + snapshotName;
             var path = Path.Combine(Plugin.Configuration.WorkingDirectory,snapName);
@@ -130,8 +140,18 @@ namespace xivclone.Managers
             Directory.CreateDirectory(path);
 
             //Get glamourer string
-            snapshotInfo.GlamourerString = Plugin.IpcManager.GlamourerGetCharacterCustomization(character.Address);
+            snapshotInfo.GlamourerString = Plugin.IpcManager.GetGlamourerState(character);
             Logger.Debug($"Got glamourer string {snapshotInfo.GlamourerString}");
+
+            //Get glamourer json
+            JObject obj = Plugin.IpcManager.GetGlamourerStateJSON(character);
+            if (obj != null)
+            {
+                snapshotInfo.GlamourerJSON = Convert.ToBase64String(Encoding.UTF8.GetBytes(obj.ToString()));
+            } else
+            {
+                Logger.Warn("Failed to get Glamourer JSON");
+            }
 
             //Save all file replacements
             List<FileReplacement> replacements = GetFileReplacementsForCharacter(character);
@@ -156,20 +176,20 @@ namespace xivclone.Managers
                 snapshotInfo.FileReplacements.Add(replacement.GamePaths[0], replacement.GamePaths);
             }
 
-            snapshotInfo.ManipulationString = Plugin.IpcManager.PenumbraGetGameObjectMetaManipulations(character.ObjectIndex);
+            snapshotInfo.ManipulationString = Plugin.IpcManager.GetMetaManipulations(character.ObjectIndex);
 
             //Get customize+ data, if applicable
-            if (Plugin.IpcManager.CheckCustomizePlusApi())
+            if (Plugin.IpcManager.IsCustomizePlusAvailable().Available)
             {
                 Logger.Debug("C+ api loaded");
-                var data = Plugin.IpcManager.GetCustomizePlusScaleFromCharacter(character);
+                var data = Plugin.IpcManager.GetCustomizePlusScale(character);
 
                 Logger.Debug(Plugin.DalamudUtil.PlayerName);
                 Logger.Debug(character.Name.TextValue);
                 if (!data.IsNullOrEmpty())
                 {
-                    File.WriteAllText(Path.Combine(path, "customizePlus.json"), data);
                     snapshotInfo.CustomizeData = data;
+                    cstring = data;
                 }
             }
                 var serializerOptions = new JsonSerializerOptions
@@ -186,7 +206,7 @@ namespace xivclone.Managers
         public bool LoadSnapshot(ICharacter characterApplyTo, int objIdx, string path)
         {
             Logger.Info($"Applying snapshot to {characterApplyTo.Address}");
-            string infoJson = File.ReadAllText(Path.Combine(path,"snapshot.json"));
+            string infoJson = File.ReadAllText(Path.Combine(path, "snapshot.json"));
             if (infoJson == null)
             {
                 Logger.Warn("No snapshot json found, aborting");
@@ -198,7 +218,7 @@ namespace xivclone.Managers
                 WriteIndented = true
             };
             SnapshotInfo? snapshotInfo = JsonSerializer.Deserialize<SnapshotInfo>(infoJson, serializerOptions);
-            if(snapshotInfo == null)
+            if (snapshotInfo == null)
             {
                 Logger.Warn("Failed to deserialize snapshot json, aborting");
                 return false;
@@ -206,43 +226,36 @@ namespace xivclone.Managers
 
             //Apply mods
             Dictionary<string, string> moddedPaths = new();
-            foreach(var replacement in snapshotInfo.FileReplacements)
+            foreach (var replacement in snapshotInfo.FileReplacements)
             {
-                foreach(var gamePath in replacement.Value)
+                foreach (var gamePath in replacement.Value)
                 {
                     moddedPaths.Add(gamePath, Path.Combine(path, replacement.Key));
                 }
             }
             Logger.Debug($"Applied {moddedPaths.Count} replacements");
 
-            foreach (var character in tempCollections)
+            Plugin.IpcManager.PenumbraRemoveTemporaryCollection(characterApplyTo.Name.TextValue);
+            Plugin.IpcManager.PenumbraSetTempMods(characterApplyTo, objIdx, moddedPaths, snapshotInfo.ManipulationString);
+            if (!tempCollections.Contains(characterApplyTo))
             {
-                Logger.Warn($"Removing collection for character {character.Item1.Name.TextValue} and uuid {character.Item2}");
-                if (character.Item1.Name.TextValue == characterApplyTo.Name.TextValue)
-                {
-                    Plugin.IpcManager.PenumbraRemoveTemporaryCollection(characterApplyTo.Name.TextValue, character.Item2);
-                }
-            }
-            Guid collectionId = Plugin.IpcManager.PenumbraSetTemporaryMods(characterApplyTo, objIdx, moddedPaths, snapshotInfo.ManipulationString);
-            // Check if the collection already contains the tuple
-            if (!tempCollections.Contains(Tuple.Create(characterApplyTo, collectionId)))
-            {
-                // Add the tuple to the collection
-                tempCollections.Add(Tuple.Create(characterApplyTo, collectionId));
+                tempCollections.Add(characterApplyTo);
             }
 
             //Apply Customize+ if it exists and C+ is installed
-            if (Plugin.IpcManager.CheckCustomizePlusApi())
+            if (Plugin.IpcManager.IsCustomizePlusAvailable().Available)
             {
-                if (snapshotInfo.CustomizeData != "")
+                if (!snapshotInfo.CustomizeData.IsNullOrEmpty())
                 {
-                    Plugin.IpcManager.CustomizePlusSetBodyScale(characterApplyTo.Address, snapshotInfo.CustomizeData);
+                    Plugin.IpcManager.SetCustomizePlusScale(characterApplyTo.Address, snapshotInfo.CustomizeData);
                 }
             }
 
             //Apply glamourer string
-            Logger.Info($"Glamourer string: {snapshotInfo.GlamourerString}");
-            Plugin.IpcManager.GlamourerApplyAll(snapshotInfo.GlamourerString, characterApplyTo);
+            Plugin.IpcManager.ApplyGlamourerState(snapshotInfo.GlamourerString, characterApplyTo);
+
+            //Redraw
+            Plugin.IpcManager.PenumbraRedraw(objIdx);
 
             return true;
         }
@@ -269,7 +282,7 @@ namespace xivclone.Managers
             int? objIdx = GetObjIDXFromCharacter(character);
 
             Logger.Debug($"Character name {charaName}");
-            if(objIdx == null)
+            if (objIdx == null)
             {
                 Logger.Error("Unable to find character in object table, aborting search for file replacements");
                 return replacements;
@@ -289,7 +302,7 @@ namespace xivclone.Managers
             var human = (Human*)baseCharacter->GameObject.GetDrawObject();
             for (var mdlIdx = 0; mdlIdx < human->CharacterBase.SlotCount; ++mdlIdx)
             {
-                var mdl = (RenderModel*)human->CharacterBase.Models[mdlIdx];
+                var mdl = (xivclone.Interop.RenderModel*)human->CharacterBase.Models[mdlIdx];
                 if (mdl == null || mdl->ResourceHandle == null || mdl->ResourceHandle->Category != ResourceCategory.Chara)
                 {
                     continue;
@@ -303,7 +316,7 @@ namespace xivclone.Managers
             return replacements;
         }
 
-        private unsafe void AddReplacementsFromRenderModel(RenderModel* mdl, List<FileReplacement> replacements, int objIdx, int inheritanceLevel = 0)
+        private unsafe void AddReplacementsFromRenderModel(xivclone.Interop.RenderModel* mdl, List<FileReplacement> replacements, int objIdx, int inheritanceLevel = 0)
         {
             if (mdl == null || mdl->ResourceHandle == null || mdl->ResourceHandle->Category != ResourceCategory.Chara)
             {
@@ -323,20 +336,19 @@ namespace xivclone.Managers
             Logger.Verbose("Checking File Replacement for Model " + mdlPath);
 
             FileReplacement mdlFileReplacement = CreateFileReplacement(mdlPath, objIdx);
-            //DebugPrint(mdlFileReplacement, objectKind, "Model", inheritanceLevel);
 
             AddFileReplacement(replacements, mdlFileReplacement);
 
             for (var mtrlIdx = 0; mtrlIdx < mdl->MaterialCount; mtrlIdx++)
             {
-                var mtrl = (Penumbra.Interop.Structs.Material*)mdl->Materials[mtrlIdx];
+                var mtrl = (xivclone.Interop.Material*)mdl->Materials[mtrlIdx];
                 if (mtrl == null) continue;
 
                 AddReplacementsFromMaterial(mtrl, replacements, objIdx, inheritanceLevel + 1);
             }
         }
 
-        private unsafe void AddReplacementsFromMaterial(Penumbra.Interop.Structs.Material* mtrl, List<FileReplacement> replacements, int objIdx, int inheritanceLevel = 0)
+        private unsafe void AddReplacementsFromMaterial(xivclone.Interop.Material* mtrl, List<FileReplacement> replacements, int objIdx, int inheritanceLevel = 0)
         {
             string fileName;
             try
@@ -359,7 +371,7 @@ namespace xivclone.Managers
             }
             else
             {
-                Logger.Warn($"Material {fileName} did not split into at least 3 partts");
+                Logger.Warn($"Material {fileName} did not split into at least 3 parts");
                 return;
             }
 
@@ -369,11 +381,10 @@ namespace xivclone.Managers
             }
 
             var mtrlFileReplacement = CreateFileReplacement(mtrlPath, objIdx);
-            //DebugPrint(mtrlFileReplacement, objectKind, "Material", inheritanceLevel);
 
             AddFileReplacement(replacements, mtrlFileReplacement);
 
-            var mtrlResourceHandle = (MtrlResource*)mtrl->ResourceHandle;
+            var mtrlResourceHandle = (xivclone.Interop.MtrlResource*)mtrl->ResourceHandle;
             for (var resIdx = 0; resIdx < mtrlResourceHandle->NumTex; resIdx++)
             {
                 string? texPath = null;
@@ -415,7 +426,7 @@ namespace xivclone.Managers
 
             Logger.Debug($"Adding replacement for texture {texPath}");
 
-            if(replacements.Any(c => c.GamePaths.Contains(texPath, StringComparer.Ordinal)))
+            if (replacements.Any(c => c.GamePaths.Contains(texPath, StringComparer.Ordinal)))
             {
                 Logger.Debug($"Replacements already contain {texPath}, skipping");
                 return;
@@ -440,10 +451,10 @@ namespace xivclone.Managers
             }
 
             var shpkFileReplacement = CreateFileReplacement(shpkPath, objIdx);
-            //DebugPrint(shpkFileReplacement, objectKind, "Shader", inheritanceLevel);
             AddFileReplacement(replacements, shpkFileReplacement);
         }
 
+        // TODO: Figure out whether this causes crashes...
         private unsafe void AddPlayerSpecificReplacements(List<FileReplacement> replacements, IntPtr charaPointer, Human* human, int objIdx)
         {
             var weaponObject = (Interop.Weapon*)((FFXIVClientStructs.FFXIV.Client.Graphics.Scene.Object*)human)->ChildObject;
@@ -454,11 +465,12 @@ namespace xivclone.Managers
 
                 AddReplacementsFromRenderModel(mainHandWeapon, replacements, objIdx, 0);
 
-                /*foreach (var item in replacements)
+                /*
+                foreach (var item in replacements)
                 {
                     _transientResourceManager.RemoveTransientResource(charaPointer, item);
-                }*/
-                
+                }
+                */
                 /*
                 foreach (var item in _transientResourceManager.GetTransientResources((IntPtr)weaponObject))
                 {
@@ -466,6 +478,7 @@ namespace xivclone.Managers
                     AddReplacement(item, objectKind, previousData, 1, true);
                 }
                 */
+
 
                 if (weaponObject->NextSibling != (IntPtr)weaponObject)
                 {
@@ -490,54 +503,20 @@ namespace xivclone.Managers
             AddReplacementSkeleton(((Interop.HumanExt*)human)->Human.RaceSexId, objIdx, replacements);
             try
             {
-                var decal = ((Interop.HumanExt*)human)->Decal;
-                if (decal != null)
-                {
-                    var fileName = decal->FileName();
-                    if (fileName != null)
-                    {
-                        AddReplacementsFromTexture(new ByteString(fileName).ToString(), replacements, objIdx, 0, false);
-                    }
-                    else
-                    {
-                        Logger.Debug("Decal FileName was null");
-                    }
-                }
-                else
-                {
-                    Logger.Debug("Decal pointer was null");
-                }
+                AddReplacementsFromTexture(new ByteString(((Interop.HumanExt*)human)->Decal->FileName()).ToString(), replacements, objIdx, 0, false);
             }
             catch
             {
-                Logger.Warn("Could not get Decal data. Possible memory access issue?");
+                Logger.Warn("Could not get Decal data");
             }
-
             try
             {
-                var legacyDecal = ((Interop.HumanExt*)human)->LegacyBodyDecal;
-                if (legacyDecal != null)
-                {
-                    var fileName = legacyDecal->FileName();
-                    if (fileName != null)
-                    {
-                        AddReplacementsFromTexture(new ByteString(fileName).ToString(), replacements, objIdx, 0, false);
-                    }
-                    else
-                    {
-                        Logger.Debug("Legacy Body Decal FileName was null");
-                    }
-                }
-                else
-                {
-                    Logger.Debug("Legacy Body Decal pointer was null");
-                }
+                AddReplacementsFromTexture(new ByteString(((Interop.HumanExt*)human)->LegacyBodyDecal->FileName()).ToString(), replacements, objIdx, 0, false);
             }
             catch
             {
-                Logger.Warn("Could not get Legacy Body Decal data. Possible memory access issue?");
+                Logger.Warn("Could not get Legacy Body Decal Data");
             }
-
             /*
             foreach (var item in previousData.FileReplacements[objectKind])
             {
@@ -554,8 +533,6 @@ namespace xivclone.Managers
 
             var replacement = CreateFileReplacement(skeletonPath, objIdx, true);
             AddFileReplacement(replacements, replacement);
-            
-            //DebugPrint(replacement, objectKind, "SKLB", 0);
         }
 
         private void AddFileReplacement(List<FileReplacement> replacements, FileReplacement newReplacement)
@@ -563,7 +540,7 @@ namespace xivclone.Managers
             if (!newReplacement.HasFileReplacement)
             {
                 Logger.Debug($"Replacement for {newReplacement.ResolvedPath} does not have a file replacement, skipping");
-                foreach(var path in newReplacement.GamePaths)
+                foreach (var path in newReplacement.GamePaths)
                 {
                     Logger.Debug(path);
                 }
@@ -598,6 +575,36 @@ namespace xivclone.Managers
 
             Logger.Debug($"Created file replacement for resolved path {fileReplacement.ResolvedPath}, hash {fileReplacement.Hash}, gamepath {fileReplacement.GamePaths[0]}");
             return fileReplacement;
+        }
+
+        public bool InstallMod(string fullPath)
+        {
+            Logger.Debug($"Triggering install of mod {fullPath}");
+            return Plugin.IpcManager.PenumbraInsallMod(fullPath);
+        }
+
+        public bool SetModPath(string modName, string newPath)
+        {
+            Logger.Debug($"Triggering set mod path {modName} to {newPath}");
+            return Plugin.IpcManager.PenumbraSetModPath(modName, newPath);
+        }
+
+        public Guid AddDesign(JObject design, string name)
+        {
+            Logger.Debug($"Triggering add design {name}");
+            return Plugin.IpcManager.AddGlamourerDesign(design, name);
+        }
+
+        public bool AddCustomizeTemplate(string templateData, string name)
+        {
+            Logger.Debug($"Triggering add c+ template {name}");
+            return Plugin.IpcManager.AddCustomizePlusTemplate(templateData, name);
+        }
+
+        public bool AddMod(string modname)
+        {
+            Logger.Debug($"Triggering add mod {modname}");
+            return Plugin.IpcManager.PenumbraAddMod(modname);
         }
     }
 }

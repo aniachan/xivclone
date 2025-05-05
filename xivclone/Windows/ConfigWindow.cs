@@ -18,7 +18,7 @@ public class ConfigWindow : Window, IDisposable
         ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
         ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoResize)
     {
-        this.Size = new Vector2(500, 115);
+        this.Size = new Vector2(600, 115);
         this.SizeCondition = ImGuiCond.Always;
 
         this.Configuration = plugin.Configuration;
@@ -30,13 +30,13 @@ public class ConfigWindow : Window, IDisposable
     public override void Draw()
     {
         var workingDirectory = Configuration.WorkingDirectory;
-        ImGui.InputText("Working Folder", ref workingDirectory, 255, ImGuiInputTextFlags.ReadOnly);
+        ImGui.InputText("Snapshot Directory", ref workingDirectory, 255, ImGuiInputTextFlags.ReadOnly);
         ImGui.SameLine();
         ImGui.PushFont(UiBuilder.IconFont);
         string folderIcon = FontAwesomeIcon.Folder.ToIconString();
         if (ImGui.Button(folderIcon))
         {
-            FileDialogManager.OpenFolderDialog("xivclone working directory", (status, path) =>
+            FileDialogManager.OpenFolderDialog("xivclone snapshot directory", (status, path) =>
             {
                 if (!status)
                 {
@@ -46,6 +46,29 @@ public class ConfigWindow : Window, IDisposable
                 if (Directory.Exists(path))
                 {
                     this.Configuration.WorkingDirectory = path;
+                    this.Configuration.Save();
+                }
+            });
+        }
+        ImGui.PopFont();
+
+        var penumbraDirectory = Configuration.PenumbraDirectory;
+        ImGui.InputText("Penumbra Directory", ref penumbraDirectory, 255, ImGuiInputTextFlags.ReadOnly);
+        ImGui.SameLine();
+        ImGui.PushFont(UiBuilder.IconFont);
+        string heartIcon = FontAwesomeIcon.Heart.ToIconString();
+        if (ImGui.Button(heartIcon))
+        {
+            FileDialogManager.OpenFolderDialog("penumbra mod directory", (status, path) =>
+            {
+                if (!status)
+                {
+                    return;
+                }
+
+                if (Directory.Exists(path))
+                {
+                    this.Configuration.PenumbraDirectory = path;
                     this.Configuration.Save();
                 }
             });

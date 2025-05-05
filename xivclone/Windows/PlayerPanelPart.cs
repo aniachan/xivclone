@@ -4,6 +4,7 @@ using ImGuiNET;
 using System;
 using System.IO;
 using System.Numerics;
+using xivclone.Managers.AutoInstaller;
 
 namespace xivclone.Windows
 {
@@ -20,14 +21,32 @@ namespace xivclone.Windows
             ImGui.Button($"{currentLabel}##playerHeader", -Vector2.UnitX * 0.0001f);
         }
 
-        private string saveDialogName = ""; // Variable to store the name for save operation
-        private string appendDialogName = ""; // Variable to store the name for append operation
-        private bool showSaveDialog = false; // Flag to indicate whether to show the save dialog
-        private bool showAppendDialog = false; // Flag to indicate whether to show the append dialog
+        private string saveDialogName = "";
+        private string appendDialogName = "";
+        private string autoModName = "";
+        private bool showSaveDialog = false;
+        private bool showAppendDialog = false;
+        private bool showPreInstallDialog = false;
 
+        AutoMod autoMod = new AutoMod();
+        
         private void DrawPlayerPanel()
         {
-            if (!Plugin.IpcManager._customizeAniVer)
+            bool cust = Plugin.IpcManager.IsCustomizePlusAvailable().IsAniVersion;
+            bool glam = Plugin.IpcManager.IsGlamourerAvailable();
+            if (cust && glam)
+            {
+                ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.ParsedGreen);
+                ImGui.Text("all prerequisites satisfied - happy cloning <3");
+                ImGui.PopStyleColor();
+            } else if (!glam)
+            {
+                ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudRed);
+                ImGui.Text("ERROR:");
+                ImGui.Text("You do not have the latest Glamourer version installed. Update or risk crashes.");
+                ImGui.PopStyleColor();
+            }
+            else
             {
                 ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.ParsedOrange);
                 ImGui.Text("WARNING:");
@@ -35,12 +54,26 @@ namespace xivclone.Windows
                 ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudYellow);
                 ImGui.Text("You do not have Ani's Customize+ plugin installed. Scales will not be captured.");
                 ImGui.PopStyleColor();
-            } else
-            {
-                ImGui.Text("all prerequisites satisfied - happy cloning <3");
             }
 
-                ImGui.Text("Save snapshot of player ");
+            ImGui.Text("Capture Glamourer String for Selected Player");
+            ImGui.SameLine();
+            ImGui.PushFont(UiBuilder.IconFont);
+            try
+            {
+                string glamourerIcon = FontAwesomeIcon.PaintBrush.ToIconString();
+                if (ImGui.Button(glamourerIcon))
+                {
+                    if (player != null)
+                        Plugin.SnapshotManager.CopyGlamourerStringToClipboard(player);
+                }
+            }
+            finally
+            {
+                ImGui.PopFont();
+            }
+
+            ImGui.Text("Save snapshot of player ");
             ImGui.SameLine();
             ImGui.PushFont(UiBuilder.IconFont);
 
@@ -73,7 +106,7 @@ namespace xivclone.Windows
                 }
             }
 
-            if (Plugin.IpcManager._customizeAniVer)
+            if (Plugin.IpcManager.IsCustomizePlusAvailable().IsAniVersion)
             {
                 ImGui.Text("Copy c+ to clipboard uwu");
                 ImGui.SameLine();
@@ -84,7 +117,7 @@ namespace xivclone.Windows
                     string copyIcon = FontAwesomeIcon.Clipboard.ToIconString();
                     if (ImGui.Button(copyIcon))
                     {
-                        var customizeString = Plugin.IpcManager.GetCustomizePlusScaleFromCharacter(player);
+                        var customizeString = Plugin.IpcManager.GetCustomizePlusScale(player!);
                         ImGui.SetClipboardText(customizeString);
                     }
                 }
@@ -94,7 +127,7 @@ namespace xivclone.Windows
                 }
             }
 
-            if (!IsInGpose)
+            if (IsInGpose)
             {
                 ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudYellow);
                 ImGui.Text("Saving snapshots while GPose is active may result in broken/incorrect snapshots. For best results, leave GPose first.");
@@ -120,6 +153,55 @@ namespace xivclone.Windows
                 ImGui.PopFont();
             }
 
+            // Direct Install
+            if (Plugin.Configuration.PenumbraDirectory != String.Empty)
+            {
+                ImGui.Text("Direct Install");
+                ImGui.SameLine();
+                ImGui.PushFont(UiBuilder.IconFont);
+
+                try
+                {
+                    string arrowsIcon = FontAwesomeIcon.ArrowsTurnRight.ToIconString();
+                    if (ImGui.Button(arrowsIcon))
+                    {
+                        showPreInstallDialog = true;
+                    }
+                }
+                finally
+                {
+                    ImGui.PopFont();
+                }
+            } else
+            {
+                ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudRed);
+                ImGui.Text("ERROR:");
+                ImGui.Text("You do not have your Penumbra directory set. Direct install is not available.");
+                ImGui.PopStyleColor();
+            }
+
+            if (showPreInstallDialog)
+            {
+                if (OpenNameField("Auto Name", ref autoModName))
+                {
+                    // Save snapshot with optional name
+                    if (player != null)
+                    {
+                        
+                        autoMod.Name = autoModName;
+                        StartInstallationProcess();
+                        showPreInstallDialog = false;
+                        autoModName = "";
+                    }
+                }
+            }
+            if (showInstallDialog)
+            {
+                DrawInstallDialog();
+            }
+
+            // Append
+
             if (showAppendDialog)
             {
                 if (OpenNameField("Append Snapshot", ref appendDialogName))
@@ -136,13 +218,14 @@ namespace xivclone.Windows
 
             if (this.modifiable)
             {
+                ImGui.Spacing();
                 ImGui.Text("Load snapshot onto ");
                 ImGui.SameLine();
                 ImGui.PushFont(UiBuilder.IconFont);
 
                 try
                 {
-                    string loadIcon = FontAwesomeIcon.Clipboard.ToIconString();
+                    string loadIcon = FontAwesomeIcon.FileImport.ToIconString();
                     if (ImGui.Button(loadIcon))
                     {
                         Plugin.FileDialogManager.OpenFolderDialog("Snapshot selection", (status, path) =>
@@ -199,14 +282,14 @@ namespace xivclone.Windows
                 if (ImGui.Button("Cancel"))
                 {
                     ImGui.CloseCurrentPopup();
+                    showSaveDialog = false; showAppendDialog = false; // Reset flags
+                    return false;
                 }
 
                 ImGui.EndPopup();
             }
-
             return false; // Return false if the dialog is canceled
         }
-
 
         private void DrawMonsterPanel()
         {

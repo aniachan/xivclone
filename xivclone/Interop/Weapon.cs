@@ -2,8 +2,6 @@ using System;
 using System.Runtime.InteropServices;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Scene;
-using FFXIVClientStructs.FFXIV.Client.System.Resource.Handle;
-using Penumbra.Interop.Structs;
 
 namespace xivclone.Interop;
 
@@ -26,8 +24,8 @@ public unsafe struct WeaponDrawObject
 public unsafe struct HumanExt
 {
     [FieldOffset(0x0)] public Human Human;
-    [FieldOffset(0x9E8)] public Penumbra.Interop.Structs.ResourceHandle* Decal;
-    [FieldOffset(0x9F0)] public Penumbra.Interop.Structs.ResourceHandle* LegacyBodyDecal;
+    [FieldOffset(0x9E8)] public ResourceHandle* Decal;
+    [FieldOffset(0x9F0)] public ResourceHandle* LegacyBodyDecal;
 }
 
 [StructLayout(LayoutKind.Explicit)]

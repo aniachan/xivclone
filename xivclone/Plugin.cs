@@ -9,7 +9,6 @@ using xivclone.Utils;
 using xivclone.Managers;
 using MareSynchronos.Export;
 using xivclone.PMP;
-using Snapper.Managers;
 
 namespace xivclone
 {
@@ -34,6 +33,7 @@ namespace xivclone
         [PluginService] public static IPluginLog Log { get; private set; } = null!;
         [PluginService] public static ICommandManager CommandManager { get; private set; } = null!;
         [PluginService] public static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
+        [PluginService] public static IDataManager DataManager { get; private set; } = null!;
         //[PluginService] public static Configuration Configuration { get; private set; } = null!;
 
         //public IPluginLog PluginLog { get; private set; } = null!;
