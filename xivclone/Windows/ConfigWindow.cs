@@ -18,7 +18,7 @@ public class ConfigWindow : Window, IDisposable
         ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
         ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoResize)
     {
-        this.Size = new Vector2(500, 115);
+        this.Size = new Vector2(600, 115);
         this.SizeCondition = ImGuiCond.Always;
 
         this.Configuration = plugin.Configuration;
@@ -53,7 +53,7 @@ public class ConfigWindow : Window, IDisposable
         ImGui.PopFont();
 
         var penumbraDirectory = Configuration.PenumbraDirectory;
-        ImGui.InputText("Penumbra Directory (required for auto-install)", ref penumbraDirectory, 255, ImGuiInputTextFlags.ReadOnly);
+        ImGui.InputText("Penumbra Directory", ref penumbraDirectory, 255, ImGuiInputTextFlags.ReadOnly);
         ImGui.SameLine();
         ImGui.PushFont(UiBuilder.IconFont);
         string heartIcon = FontAwesomeIcon.Heart.ToIconString();

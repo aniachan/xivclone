@@ -36,7 +36,7 @@ public partial class CustomizeIpc : IDisposable
         _SetBodyScaleToCharacter = pi.GetIpcSubscriber<ushort, string, (int, Guid?)>("CustomizePlus.Profile.SetTemporaryProfileOnCharacter");
         _OnScaleUpdate = pi.GetIpcSubscriber<ushort, Guid, object>("CustomizePlus.Profile.OnUpdate");
         _DeleteByUniqueId = pi.GetIpcSubscriber<Guid, int>("CustomizePlus.Profile.DeleteTemporaryProfileByUniqueId");
-        _CreateTemplate = pi.GetIpcSubscriber<string, string, int>("Template.Import");
+        _CreateTemplate = pi.GetIpcSubscriber<string, string, int>("CustomizePlus.Template.Import");
 
         _OnScaleUpdate.Subscribe(OnScaleChange);
 

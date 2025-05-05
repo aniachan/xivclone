@@ -7,6 +7,8 @@ using xivclone.Utils;
 using System.Text.Json;
 using System.IO.Compression;
 using Newtonsoft.Json.Linq;
+using Dalamud.Utility;
+using xivclone.Interop;
 
 namespace xivclone.PMP
 {
@@ -39,8 +41,23 @@ namespace xivclone.PMP
             JObject? design = null;
             try
             {
-                
-                design = JObject.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(snapshotInfo.GlamourerJSON)));
+                if (snapshotInfo.GlamourerJSON.IsNullOrEmpty())
+                {
+                    // Attempt to convert the base64 string to JSON
+                    try
+                    {
+                        DesignParser parser = new DesignParser();
+                        design = parser.FromBase64(snapshotInfo.GlamourerString);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warn($"Failed to parse glamourer base64 as json: {ex.Message}");
+                    }
+                } else
+                {
+                    // Use the available JSON
+                    design = JObject.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(snapshotInfo.GlamourerJSON)));
+                }
             }
             catch (Exception ex)
             {
@@ -50,7 +67,6 @@ namespace xivclone.PMP
             //begin building PMP
             string snapshotName = new DirectoryInfo(snapshotPath).Name;
             string pmpFileName = $"{snapshotName}_{Guid.NewGuid()}";
-
 
             string workingDirectory = Path.Combine(plugin.Configuration.WorkingDirectory, $"temp_{pmpFileName}");
             if (!Directory.Exists(workingDirectory))

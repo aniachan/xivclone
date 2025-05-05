@@ -174,11 +174,11 @@ public partial class GlamourerIpc : IDisposable
         return Guid.Empty;
     }
 
-    private bool Check()
+    public bool Check()
     {
         try
         {
-            return _version.Invoke() is { Major: 1, Minor: >= 1 };
+            return _version.Invoke() is { Major: 1, Minor: >= 6 };
         }
         catch
         {

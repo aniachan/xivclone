@@ -24,7 +24,7 @@ namespace xivclone.Windows
 
             ImGui.OpenPopup("Installing Mod");
             bool open = true;
-            ImGui.SetNextWindowSize(new Vector2(300, 150), ImGuiCond.FirstUseEver);
+            ImGui.SetNextWindowSize(new Vector2(400, 150), ImGuiCond.FirstUseEver);
             if (ImGui.BeginPopupModal("Installing Mod", ref open, ImGuiWindowFlags.NoResize))
             {
                 
@@ -89,13 +89,12 @@ namespace xivclone.Windows
             if (!await PerformStepAsync(4, "Building design... pwease wait~", AutoBuildDesign))
                 return false;
 
-            // Uncomment when ready
-            // if (!await PerformStepAsync(5, "Importing customize... pwease wait~", AutoImportCustomize))
-            //     return false;
+            if (!await PerformStepAsync(5, "Importing customize... pwease wait~", AutoImportCustomize))
+                return false;
 
+            Cleanup();
             return true;
         }
-
 
         // Generic function to handle each installation step
         private async Task<bool> PerformStepAsync(int step, string statusMessage, Func<Task<bool>> stepAction)

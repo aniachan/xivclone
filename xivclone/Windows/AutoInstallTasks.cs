@@ -13,7 +13,7 @@ namespace xivclone.Windows
     {
         private async Task<bool> AutoCreateSnapshot()
         {
-            if (autoInstallExistingPath != string.Empty)
+            if (autoInstallExistingPath == string.Empty)
             {
                 if (player != null)
                 {
@@ -92,7 +92,7 @@ namespace xivclone.Windows
             string fullPath = Path.Combine(Plugin.Configuration.WorkingDirectory, autoMod.PackFilename);
             if (File.Exists(fullPath))
             {
-                LogAndStore($"[auto step 3] Decompressing mod {autoMod.PackFilename}...", msg => Logger.Debug(msg));
+                LogAndStore($"[auto step 3] Decompressing mod...", msg => Logger.Debug(msg));
 
                 try
                 {
@@ -105,7 +105,7 @@ namespace xivclone.Windows
                     return false;
                 }
 
-                LogAndStore($"[auto step 3] Installing mod {autoMod.PackFilename}...", msg => Logger.Debug(msg));
+                LogAndStore($"[auto step 3] Installing mod...", msg => Logger.Debug(msg));
                 try
                 {
                     bool installed = await Plugin.DalamudUtil.RunOnFrameworkThread(() =>
@@ -153,8 +153,14 @@ namespace xivclone.Windows
                 autoMod.Design["Mods"] = new JArray { modEntry };
                 autoMod.Design["ResetAdvancedDyes"] = true;
                 autoMod.Design["ResetTemporarySettings"] = true;
+                autoMod.Design["Identifier"] = Guid.NewGuid().ToString();
+                autoMod.Design["CreationDate"] = DateTime.UtcNow.ToString("O");
+                autoMod.Design["LastEdit"] = DateTime.UtcNow.ToString("O");
+                autoMod.Design["Name"] = autoMod.Name;
+                autoMod.Design["Description"] = "Auto-generated design from XIVClone";
 
                 LogAndStore($"[auto step 4] Adding design {autoMod.Name}...", msg => Logger.Debug(msg));
+
                 autoMod.DesignGuid = await Plugin.DalamudUtil.RunOnFrameworkThread(() =>
                     Plugin.SnapshotManager.AddDesign(autoMod.Design, autoMod.Name));
 
@@ -201,9 +207,18 @@ namespace xivclone.Windows
                     Cleanup();
                     return false;
                 }
+                else
+                {
+                    LogAndStore($"[auto step 5] Skipped customize+ import as no string is available.", msg => Logger.Debug(msg));
+                    return true;
+                }
             }
-
-            LogAndStore("[auto step 5] skipping customize+ import as Customize+ (ani version) is missing", msg => Logger.Warn(msg));
+            else
+            {
+                LogAndStore("[auto step 5] skipping customize+ import as Customize+ (ani version) is missing", msg => Logger.Warn(msg));
+                return false;
+            }
+            Logger.Error("[auto step 5] Unknown error");
             return false;
         }
 

@@ -34,11 +34,18 @@ public partial class MainWindow : Window, IDisposable
     public override void Draw()
     {
         ImGui.PushFont(UiBuilder.IconFont);
-
+        
         string gearIcon = FontAwesomeIcon.Cog.ToIconString();
-        if (ImGui.Button(gearIcon))
+        try
         {
-            this.Plugin.DrawConfigUI();
+            if (ImGui.Button(gearIcon))
+            {
+                this.Plugin.DrawConfigUI();
+            }
+        }
+        finally
+        {
+            ImGui.PopFont();
         }
 
         ImGui.SameLine();
@@ -101,12 +108,24 @@ public partial class MainWindow : Window, IDisposable
             ImGui.BeginDisabled();
 
         // Draw the button
+        ImGui.SameLine();
         if (ImGui.Button("Auto-Install Existing Mod"))
         {
             if (Directory.Exists(Plugin.Configuration.PenumbraDirectory))
             {
-                autoInstallExistingPath = Plugin.Configuration.PenumbraDirectory;
-                StartInstallationProcess();
+                Plugin.FileDialogManager.OpenFolderDialog("Snapshot selection", (status, path) =>
+                {
+                    if (!status)
+                    {
+                        return;
+                    }
+
+                    if (Directory.Exists(path))
+                    {
+                        autoInstallExistingPath = path;
+                        StartInstallationProcess();
+                    }
+                }, Plugin.Configuration.WorkingDirectory);
             }
         }
 

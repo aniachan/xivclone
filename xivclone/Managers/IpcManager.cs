@@ -75,6 +75,7 @@ public class IpcManager : IDisposable
 
     // Glamourer passthroughs
     public GlamourerIpc GlamourerIpc => _glamourer;
+    public bool IsGlamourerAvailable() => _glamourer.Check();
     public string GetGlamourerState(ICharacter c) => _glamourer.GetCharacterCustomization(c.Address);
     public JObject? GetGlamourerStateJSON(ICharacter c) => _glamourer.GetCharacterCustomizationJson(c.Address);
     public void ApplyGlamourerState(string? base64, ICharacter c) => _glamourer.ApplyState(base64, c);

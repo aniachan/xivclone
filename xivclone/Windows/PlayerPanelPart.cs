@@ -23,20 +23,30 @@ namespace xivclone.Windows
 
         private string saveDialogName = "";
         private string appendDialogName = "";
+        private string autoModName = "";
         private bool showSaveDialog = false;
         private bool showAppendDialog = false;
         private bool showPreInstallDialog = false;
 
         AutoMod autoMod = new AutoMod();
-
+        
         private void DrawPlayerPanel()
         {
-            if (Plugin.IpcManager.IsCustomizePlusAvailable().IsAniVersion)
+            bool cust = Plugin.IpcManager.IsCustomizePlusAvailable().IsAniVersion;
+            bool glam = Plugin.IpcManager.IsGlamourerAvailable();
+            if (cust && glam)
             {
                 ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.ParsedGreen);
                 ImGui.Text("all prerequisites satisfied - happy cloning <3");
                 ImGui.PopStyleColor();
-            } else
+            } else if (!glam)
+            {
+                ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudRed);
+                ImGui.Text("ERROR:");
+                ImGui.Text("You do not have the latest Glamourer version installed. Update or risk crashes.");
+                ImGui.PopStyleColor();
+            }
+            else
             {
                 ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.ParsedOrange);
                 ImGui.Text("WARNING:");
@@ -172,15 +182,16 @@ namespace xivclone.Windows
 
             if (showPreInstallDialog)
             {
-                string autoModName = "";
-                if (OpenNameField("Mod name", ref autoModName))
+                if (OpenNameField("Auto Name", ref autoModName))
                 {
                     // Save snapshot with optional name
                     if (player != null)
                     {
-                        showPreInstallDialog = false;
+                        
                         autoMod.Name = autoModName;
                         StartInstallationProcess();
+                        showPreInstallDialog = false;
+                        autoModName = "";
                     }
                 }
             }
