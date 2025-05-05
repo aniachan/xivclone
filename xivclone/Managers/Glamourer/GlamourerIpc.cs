@@ -9,6 +9,7 @@ using xivclone.Utils;
 using Dalamud.Utility;
 using Glamourer.Api.Api;
 using Newtonsoft.Json.Linq;
+using System.Text;
 
 namespace xivclone.Managers.Glamourer;
 
@@ -161,7 +162,9 @@ public partial class GlamourerIpc : IDisposable
         try
         {
             Logger.Debug($"Creating design {name}...");
-            if (_addDesign.Invoke(design.ToString(), name, out Guid guid) == GlamourerApiEc.Success)
+            byte[] bytes = Encoding.UTF8.GetBytes(design.ToString());
+            string base64 = Convert.ToBase64String(bytes);
+            if (_addDesign.Invoke(base64, name, out Guid guid) == GlamourerApiEc.Success)
                 return guid;
         }
         catch (Exception ex)

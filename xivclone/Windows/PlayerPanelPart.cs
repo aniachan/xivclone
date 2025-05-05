@@ -143,35 +143,31 @@ namespace xivclone.Windows
                 ImGui.PopFont();
             }
 
-            ImGui.Text("Direct Install");
-            ImGui.SameLine();
-            ImGui.PushFont(UiBuilder.IconFont);
-
-            try
+            // Direct Install
+            if (Plugin.Configuration.PenumbraDirectory != String.Empty)
             {
-                string arrowsIcon = FontAwesomeIcon.ArrowsTurnRight.ToIconString();
-                if (ImGui.Button(arrowsIcon))
+                ImGui.Text("Direct Install");
+                ImGui.SameLine();
+                ImGui.PushFont(UiBuilder.IconFont);
+
+                try
                 {
-                    showPreInstallDialog = true;
+                    string arrowsIcon = FontAwesomeIcon.ArrowsTurnRight.ToIconString();
+                    if (ImGui.Button(arrowsIcon))
+                    {
+                        showPreInstallDialog = true;
+                    }
                 }
-            }
-            finally
-            {
-                ImGui.PopFont();
-            }
-
-            if (showAppendDialog)
-            {
-                if (OpenNameField("Append Snapshot", ref appendDialogName))
+                finally
                 {
-                    // Append snapshot with optional name
-                    if (player != null)
-                        Plugin.SnapshotManager.AppendSnapshot(player, appendDialogName);
-
-                    // Reset flag and name
-                    showAppendDialog = false;
-                    appendDialogName = "";
+                    ImGui.PopFont();
                 }
+            } else
+            {
+                ImGui.PushStyleColor(ImGuiCol.Text, ImGuiColors.DalamudRed);
+                ImGui.Text("ERROR:");
+                ImGui.Text("You do not have your Penumbra directory set. Direct install is not available.");
+                ImGui.PopStyleColor();
             }
 
             if (showPreInstallDialog)
@@ -191,6 +187,22 @@ namespace xivclone.Windows
             if (showInstallDialog)
             {
                 DrawInstallDialog();
+            }
+
+            // Append
+
+            if (showAppendDialog)
+            {
+                if (OpenNameField("Append Snapshot", ref appendDialogName))
+                {
+                    // Append snapshot with optional name
+                    if (player != null)
+                        Plugin.SnapshotManager.AppendSnapshot(player, appendDialogName);
+
+                    // Reset flag and name
+                    showAppendDialog = false;
+                    appendDialogName = "";
+                }
             }
 
             if (this.modifiable)

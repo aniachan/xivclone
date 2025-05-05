@@ -122,7 +122,7 @@ namespace xivclone.Managers
             Logger.Info($"Copied Glamourer string for {character.Name.TextValue} to clipboard.");
         }
 
-        public (bool result, JObject? design, string customize) SaveSnapshot(ICharacter character, string snapshotName)
+        public bool SaveSnapshot(ICharacter character, string snapshotName)
         {
             var charaName = character.Name.TextValue;
 
@@ -200,7 +200,7 @@ namespace xivclone.Managers
             string infoJson = JsonSerializer.Serialize(snapshotInfo, serializerOptions);
             File.WriteAllText(Path.Combine(path, "snapshot.json"), infoJson);
 
-            return (true, obj, cstring);
+            return true;
         }
 
         public bool LoadSnapshot(ICharacter characterApplyTo, int objIdx, string path)
@@ -599,6 +599,12 @@ namespace xivclone.Managers
         {
             Logger.Debug($"Triggering add c+ template {name}");
             return Plugin.IpcManager.AddCustomizePlusTemplate(templateData, name);
+        }
+
+        public bool AddMod(string modname)
+        {
+            Logger.Debug($"Triggering add mod {modname}");
+            return Plugin.IpcManager.PenumbraAddMod(modname);
         }
     }
 }

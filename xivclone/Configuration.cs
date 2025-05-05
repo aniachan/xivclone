@@ -9,9 +9,9 @@ namespace xivclone
     {
         public int Version { get; set; } = 0;
 
-        public bool SomePropertyToBeSavedAndWithADefault { get; set; } = true;
-
         public string WorkingDirectory { get; set; } = string.Empty;
+
+        public string PenumbraDirectory { get; set; } = string.Empty;
 
         public bool CopyGlamourerString { get; set; } = false;
 

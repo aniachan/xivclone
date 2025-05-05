@@ -31,6 +31,7 @@ public partial class PenumbraIpc : IDisposable
     private readonly ReverseResolvePlayerPath _reversePlayerPath;
 
     private readonly InstallMod _installMod;
+    private readonly AddMod _addMod;
     private readonly SetModPath _setModPath;
 
     public PenumbraIpc(IDalamudPluginInterface pi, DalamudUtil dalamudUtil, ConcurrentQueue<Action> queue)
@@ -54,6 +55,7 @@ public partial class PenumbraIpc : IDisposable
         _reversePlayerPath = new ReverseResolvePlayerPath(pi);
 
         _installMod = new InstallMod(pi);
+        _addMod = new AddMod(pi);
         _setModPath = new SetModPath(pi);
     }
 
@@ -172,6 +174,15 @@ public partial class PenumbraIpc : IDisposable
     public bool SetModPath(string modName, string newPath)
     {
         if (!Check()) return false;
-        return _setModPath.Invoke(modName, modName, newPath) == PenumbraApiEc.Success;
+        PenumbraApiEc ret = _setModPath.Invoke(modDirectory: modName, newPath: newPath);
+
+        return ret == PenumbraApiEc.Success;
+    }
+
+    public bool AddMod(string modName)
+    {
+        if (!Check()) return false;
+        PenumbraApiEc ret = _addMod.Invoke(modName);
+        return ret == PenumbraApiEc.Success;
     }
 }

@@ -65,6 +65,7 @@ public class IpcManager : IDisposable
     public void PenumbraSetTempMods(ICharacter character, int? idx, Dictionary<string, string> mods, string manips) => _penumbra.SetTemporaryMods(character, idx, mods, manips);
     public bool PenumbraInsallMod(string modPath) => _penumbra.InstallMod(modPath);
     public bool PenumbraSetModPath(string modName, string newPath) => _penumbra.SetModPath(modName, newPath);
+    public bool PenumbraAddMod(string modName) => _penumbra.AddMod(modName);
 
     // Passthroughs for Penumbra path helpers
     public string PenumbraResolvePath(string path) => _penumbra.ResolvePath(path);

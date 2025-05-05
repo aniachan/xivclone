@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using Dalamud.Interface;
 using Dalamud.Interface.Windowing;
 using ImGuiNET;
 using xivclone.Utils;
@@ -32,7 +33,10 @@ public partial class MainWindow : Window, IDisposable
 
     public override void Draw()
     {
-        if (ImGui.Button("Show Settings"))
+        ImGui.PushFont(UiBuilder.IconFont);
+
+        string gearIcon = FontAwesomeIcon.Cog.ToIconString();
+        if (ImGui.Button(gearIcon))
         {
             this.Plugin.DrawConfigUI();
         }
@@ -73,7 +77,7 @@ public partial class MainWindow : Window, IDisposable
 
                 if (Directory.Exists(path))
                 {
-                    var (glamourerString, _) = Plugin.PMPExportManager.SnapshotToPMP(path);
+                    var (glamourerString, _, _, _) = Plugin.PMPExportManager.SnapshotToPMP(path);
                     if (glamourerString != "")
                     {
                         if (Plugin.Configuration.CopyGlamourerString)
@@ -88,6 +92,26 @@ public partial class MainWindow : Window, IDisposable
                 }
             }, Plugin.Configuration.WorkingDirectory);
         }
+
+        // Check if the directory is set and exists
+        bool hasValidPenumbraDir = !string.IsNullOrEmpty(Plugin.Configuration.PenumbraDirectory);
+
+        // Disable the button if the directory is not valid
+        if (!hasValidPenumbraDir)
+            ImGui.BeginDisabled();
+
+        // Draw the button
+        if (ImGui.Button("Auto-Install Existing Mod"))
+        {
+            if (Directory.Exists(Plugin.Configuration.PenumbraDirectory))
+            {
+                autoInstallExistingPath = Plugin.Configuration.PenumbraDirectory;
+                StartInstallationProcess();
+            }
+        }
+
+        if (!hasValidPenumbraDir)
+            ImGui.EndDisabled();
 
         ImGui.Spacing();
 

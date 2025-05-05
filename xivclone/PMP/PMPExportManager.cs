@@ -6,6 +6,7 @@ using System.Text;
 using xivclone.Utils;
 using System.Text.Json;
 using System.IO.Compression;
+using Newtonsoft.Json.Linq;
 
 namespace xivclone.PMP
 {
@@ -17,7 +18,7 @@ namespace xivclone.PMP
             this.plugin = plugin;
         }
 
-        public (string glamourerString, string pmpName) SnapshotToPMP(string snapshotPath)
+        public (string glamourerString, string pmpName, JObject? design, string customize) SnapshotToPMP(string snapshotPath)
         {
             Logger.Debug($"Operating on {snapshotPath}");
             //read snapshot
@@ -25,13 +26,25 @@ namespace xivclone.PMP
             if (infoJson == null)
             {
                 Logger.Warn("No snapshot json found, aborting");
-                return ("", "");
+                return (String.Empty, String.Empty, null, String.Empty);
             }
             SnapshotInfo? snapshotInfo = JsonSerializer.Deserialize<SnapshotInfo>(infoJson);
             if (snapshotInfo == null)
             {
                 Logger.Warn("Failed to deserialize snapshot json, aborting");
-                return ("", "");
+                return (String.Empty, String.Empty, null, String.Empty);
+            }
+
+            //Deserialize JObject of design
+            JObject? design = null;
+            try
+            {
+                
+                design = JObject.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(snapshotInfo.GlamourerJSON)));
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"Failed to parse glamourer json: {ex.Message}");
             }
 
             //begin building PMP
@@ -78,7 +91,6 @@ namespace xivclone.PMP
             //mods
             foreach(var file in snapshotInfo.FileReplacements)
             {
-
                 string modPath = Path.Combine(snapshotPath, file.Key);
                 string destPath = Path.Combine(workingDirectory, file.Key);
                 Logger.Debug($"Copying {modPath}");
@@ -93,7 +105,7 @@ namespace xivclone.PMP
             Directory.Delete(workingDirectory, true);
 
             //return glamourer string
-            return (snapshotInfo.GlamourerString, $"{pmpFileName}.pmp");
+            return (snapshotInfo.GlamourerString, $"{pmpFileName}.pmp", design, snapshotInfo.CustomizeData);
         }
 
         // Decompress a base64 encoded string to the given type and a prepended version byte if possible.

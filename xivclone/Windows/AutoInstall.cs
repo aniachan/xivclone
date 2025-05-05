@@ -14,17 +14,20 @@ namespace xivclone.Windows
         private bool installSuccess = false;
         private string installStatusMessage = "";
         private double currentStepTime = 0.0;
-        private int currentStep = 0; // Track the current installation step
+        private int currentStep = 0;
+        private string autoInstallExistingPath = "";
 
         private void DrawInstallDialog()
         {
             if (!showInstallDialog)
                 return;
 
+            ImGui.OpenPopup("Installing Mod");
             bool open = true;
             ImGui.SetNextWindowSize(new Vector2(300, 150), ImGuiCond.FirstUseEver);
             if (ImGui.BeginPopupModal("Installing Mod", ref open, ImGuiWindowFlags.NoResize))
             {
+                
                 if (!installComplete)
                 {
                     // Show spinner while installation is happening
@@ -54,8 +57,6 @@ namespace xivclone.Windows
         {
             showInstallDialog = true;
             installStatusMessage = "Installing mod...";
-            ImGui.OpenPopup("Installing Mod");
-
             installComplete = false;
             installSuccess = false;
             installStatusMessage = "Starting installation...";
@@ -76,14 +77,25 @@ namespace xivclone.Windows
         // Perform the installation steps asynchronously
         private async Task<bool> PerformInstallationStepsAsync()
         {
-            bool success = true;
-            success &= await PerformStepAsync(1, "Creating snapshot... pwease wait~", AutoCreateSnapshot);
-            success &= await PerformStepAsync(2, "Converting snapshot... pwease wait~", AutoConvertSnapshot);
-            success &= await PerformStepAsync(3, "Installing mod... pwease wait~", AutoInstallMod);
-            success &= await PerformStepAsync(4, "Building design... pwease wait~", AutoBuildDesign);
-            success &= await PerformStepAsync(5, "Importing customize... pwease wait~", AutoImportCustomize);
-            return success;
+            if (!await PerformStepAsync(1, "Creating snapshot... pwease wait~", AutoCreateSnapshot))
+                return false;
+
+            if (!await PerformStepAsync(2, "Converting snapshot... pwease wait~", AutoConvertSnapshot))
+                return false;
+
+            if (!await PerformStepAsync(3, "Installing mod... pwease wait~", AutoInstallMod))
+                return false;
+
+            if (!await PerformStepAsync(4, "Building design... pwease wait~", AutoBuildDesign))
+                return false;
+
+            // Uncomment when ready
+            // if (!await PerformStepAsync(5, "Importing customize... pwease wait~", AutoImportCustomize))
+            //     return false;
+
+            return true;
         }
+
 
         // Generic function to handle each installation step
         private async Task<bool> PerformStepAsync(int step, string statusMessage, Func<Task<bool>> stepAction)
@@ -94,5 +106,13 @@ namespace xivclone.Windows
             bool result = await stepAction(); // Perform the actual step logic in the background
             return result;
         }
+
+        private async Task<bool> SiumlateStep()
+        {
+            // Simulate an async download operation
+            await Task.Delay(3000); // Simulate a 3-second download
+            return true; // Simulate success
+        }
+
     }
 }
