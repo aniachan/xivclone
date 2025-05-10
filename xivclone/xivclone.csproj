@@ -76,7 +76,6 @@
     <ItemGroup>
       <Folder Include="Managers\Customize\" />
       <Folder Include="Managers\Glamourer\" />
-      <Folder Include="Managers\Penumbra\" />
     </ItemGroup>
 
     <ItemGroup>

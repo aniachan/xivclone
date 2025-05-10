@@ -85,8 +85,8 @@ public partial class GlamourerIpc : IDisposable
         if (!Check()) return;
         if (obj is ICharacter c)
         {
-            _unlock!.Invoke(c.ObjectIndex, lockCode);
             _revert!.Invoke(c.ObjectIndex);
+            _unlock!.Invoke(c.ObjectIndex, lockCode);
         }
         else
         {

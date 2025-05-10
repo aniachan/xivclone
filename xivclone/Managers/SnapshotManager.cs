@@ -465,64 +465,64 @@ namespace xivclone.Managers
 
                 AddReplacementsFromRenderModel(mainHandWeapon, replacements, objIdx, 0);
 
-                /*
-                foreach (var item in replacements)
-                {
-                    _transientResourceManager.RemoveTransientResource(charaPointer, item);
-                }
-                */
-                /*
-                foreach (var item in _transientResourceManager.GetTransientResources((IntPtr)weaponObject))
-                {
-                    Logger.Verbose("Found transient weapon resource: " + item);
-                    AddReplacement(item, objectKind, previousData, 1, true);
-                }
-                */
-
-
                 if (weaponObject->NextSibling != (IntPtr)weaponObject)
                 {
                     var offHandWeapon = ((Interop.Weapon*)weaponObject->NextSibling)->WeaponRenderModel->RenderModel;
 
                     AddReplacementsFromRenderModel(offHandWeapon, replacements, objIdx, 1);
-                    /*
-                    foreach (var item in replacements)
-                    {
-                        _transientResourceManager.RemoveTransientResource((IntPtr)offHandWeapon, item);
-                    }
-
-                    foreach (var item in _transientResourceManager.GetTransientResources((IntPtr)offHandWeapon))
-                    {
-                        Logger.Verbose("Found transient offhand weapon resource: " + item);
-                        AddReplacement(item, objectKind, previousData, 1, true);
-                    }
-                    */
                 }
             }
 
             AddReplacementSkeleton(((Interop.HumanExt*)human)->Human.RaceSexId, objIdx, replacements);
             try
             {
-                AddReplacementsFromTexture(new ByteString(((Interop.HumanExt*)human)->Decal->FileName()).ToString(), replacements, objIdx, 0, false);
+                var decal = ((Interop.HumanExt*)human)->Decal;
+                if (decal != null)
+                {
+                    var fileName = decal->FileName();
+                    if (fileName != null)
+                    {
+                        AddReplacementsFromTexture(new ByteString(fileName).ToString(), replacements, objIdx, 0, false);
+                    }
+                    else
+                    {
+                        Logger.Debug("Decal FileName was null");
+                    }
+                }
+                else
+                {
+                    Logger.Debug("Decal pointer was null");
+                }
             }
             catch
             {
-                Logger.Warn("Could not get Decal data");
+                Logger.Warn("Could not get Decal data. Possible memory access issue?");
             }
+
             try
             {
-                AddReplacementsFromTexture(new ByteString(((Interop.HumanExt*)human)->LegacyBodyDecal->FileName()).ToString(), replacements, objIdx, 0, false);
+                var legacyDecal = ((Interop.HumanExt*)human)->LegacyBodyDecal;
+                if (legacyDecal != null)
+                {
+                    var fileName = legacyDecal->FileName();
+                    if (fileName != null)
+                    {
+                        AddReplacementsFromTexture(new ByteString(fileName).ToString(), replacements, objIdx, 0, false);
+                    }
+                    else
+                    {
+                        Logger.Debug("Legacy Body Decal FileName was null");
+                    }
+                }
+                else
+                {
+                    Logger.Debug("Legacy Body Decal pointer was null");
+                }
             }
             catch
             {
-                Logger.Warn("Could not get Legacy Body Decal Data");
+                Logger.Warn("Could not get Legacy Body Decal data. Possible memory access issue?");
             }
-            /*
-            foreach (var item in previousData.FileReplacements[objectKind])
-            {
-                _transientResourceManager.RemoveTransientResource(charaPointer, item);
-            }
-            */
         }
 
         private void AddReplacementSkeleton(ushort raceSexId, int objIdx, List<FileReplacement> replacements)

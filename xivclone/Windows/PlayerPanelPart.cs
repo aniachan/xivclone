@@ -4,6 +4,7 @@ using ImGuiNET;
 using System;
 using System.IO;
 using System.Numerics;
+using System.Xml.Linq;
 using xivclone.Managers.AutoInstaller;
 
 namespace xivclone.Windows
@@ -252,43 +253,6 @@ namespace xivclone.Windows
             {
                 ImGui.Text("Loading snapshots can only be done on GPose actors");
             }
-        }
-
-        private bool OpenNameField(string windowTitle, ref string name)
-        {
-            ImGui.OpenPopup(windowTitle);
-
-            bool open = true; // Flag to keep the popup open
-
-            ImGui.SetNextWindowSize(new System.Numerics.Vector2(200, 110));
-            if (ImGui.BeginPopupModal(windowTitle, ref open, ImGuiWindowFlags.NoResize))
-            {
-                ImGui.Text("Enter snapshot name (optional):");
-
-                // Generate default name if name is empty
-                if (string.IsNullOrEmpty(name))
-                {
-                    name = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-                }
-
-                ImGui.InputText("", ref name, 100);
-
-                if (ImGui.Button("Save"))
-                {
-                    ImGui.CloseCurrentPopup();
-                    return true; // Return true when Save button is clicked
-                }
-                ImGui.SameLine();
-                if (ImGui.Button("Cancel"))
-                {
-                    ImGui.CloseCurrentPopup();
-                    showSaveDialog = false; showAppendDialog = false; // Reset flags
-                    return false;
-                }
-
-                ImGui.EndPopup();
-            }
-            return false; // Return false if the dialog is canceled
         }
 
         private void DrawMonsterPanel()

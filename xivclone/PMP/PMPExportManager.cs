@@ -12,7 +12,7 @@ using xivclone.Interop;
 
 namespace xivclone.PMP
 {
-    public class PMPExportManager
+    public partial class PMPExportManager
     {
         private Plugin plugin;
         public PMPExportManager(Plugin plugin)
@@ -84,18 +84,12 @@ namespace xivclone.PMP
             }
 
             //default_mod.json
-            PMPDefaultMod defaultMod = new PMPDefaultMod();
-            foreach (var file in snapshotInfo.FileReplacements)
-            {
-                foreach(var replacement in file.Value)
-                {
-                    defaultMod.Files.Add(replacement, file.Key);
-                }
-            }
+            PMPDefaultMod defaultMod = BuildCorrectedDefaultMod(snapshotInfo.FileReplacements);
 
             List<PMPManipulationEntry>? manipulations;
             FromCompressedBase64<List<PMPManipulationEntry>>(snapshotInfo.ManipulationString, out manipulations);
-            if(manipulations != null)
+
+            if (manipulations != null)
             {
                 defaultMod.Manipulations = manipulations;
             }
