@@ -188,17 +188,12 @@ namespace xivclone.Windows
                     // Save snapshot with optional name
                     if (player != null)
                     {
-                        
                         autoMod.Name = autoModName;
                         StartInstallationProcess();
                         showPreInstallDialog = false;
                         autoModName = "";
                     }
                 }
-            }
-            if (showInstallDialog)
-            {
-                DrawInstallDialog();
             }
 
             // Append

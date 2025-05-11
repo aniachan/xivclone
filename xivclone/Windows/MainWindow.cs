@@ -134,6 +134,11 @@ public partial class MainWindow : Window, IDisposable
 
         ImGui.Spacing();
 
+        if (showInstallDialog)
+        {
+            DrawInstallDialog();
+        }
+
         this.DrawPlayerSelector();
         if (!currentLabel.Any())
             return;

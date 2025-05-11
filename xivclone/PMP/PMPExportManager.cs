@@ -9,6 +9,7 @@ using System.IO.Compression;
 using Newtonsoft.Json.Linq;
 using Dalamud.Utility;
 using xivclone.Interop;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 
 namespace xivclone.PMP
 {
@@ -88,6 +89,11 @@ namespace xivclone.PMP
 
             List<PMPManipulationEntry>? manipulations;
             FromCompressedBase64<List<PMPManipulationEntry>>(snapshotInfo.ManipulationString, out manipulations);
+
+            if (!snapshotInfo.ManipulationString.IsNullOrEmpty())
+            {
+                File.WriteAllText(Path.Combine(workingDirectory, "meta.txt"), snapshotInfo.ManipulationString);
+            }
 
             if (manipulations != null)
             {
