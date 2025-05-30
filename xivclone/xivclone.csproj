@@ -32,6 +32,7 @@
     <ItemGroup>
         <PackageReference Include="DalamudPackager" Version="12.0.0" />
         <PackageReference Include="ECommons" Version="2.0.0.4" />
+        <PackageReference Include="Glamourer.Api" Version="2.6.0" />
         <PackageReference Include="lz4net" Version="1.0.15.93" />
         <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.4" />
         <PackageReference Include="Penumbra.Api" Version="5.6.1" />
@@ -76,10 +77,6 @@
     <ItemGroup>
       <Folder Include="Managers\Customize\" />
       <Folder Include="Managers\Glamourer\" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <ProjectReference Include="..\Glamourer.Api\Glamourer.Api.csproj" />
     </ItemGroup>
 
 </Project>
