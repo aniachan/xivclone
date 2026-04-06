@@ -8,7 +8,7 @@
     "TestingAssemblyVersion": "0.0.0.12",
     "RepoUrl": "https://github.com/aniachan/xivclone",
     "ApplicableVersion": "any",
-    "DalamudApiLevel": 12,
+    "DalamudApiLevel": 14,
     "IsHide": "False",
     "IsTestingExclusive": "False",
     "DownloadCount": 0,

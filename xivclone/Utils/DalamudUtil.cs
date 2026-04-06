@@ -258,7 +258,7 @@ public class DalamudUtil : IDisposable
         const int tick = 250;
         int curWaitTime = 0;
         // ReSharper disable once LoopVariableIsNeverChangedInsideLoop
-        while ((obj->RenderFlags & 0b100000000000) == 0b100000000000 && (!ct?.IsCancellationRequested ?? true) && curWaitTime < timeOut) // 0b100000000000 is "still rendering" or something
+        while ((((ulong)obj->RenderFlags) & 0b100000000000UL) == 0b100000000000UL && (!ct?.IsCancellationRequested ?? true) && curWaitTime < timeOut) // 0b100000000000 is "still rendering" or something
         {
             Logger.Verbose($"Waiting for {name} to finish drawing");
             curWaitTime += tick;

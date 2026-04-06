@@ -1,4 +1,4 @@
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using System;
 using System.Text;
 
@@ -30,17 +30,10 @@ namespace xivclone.Windows
 
                 UpdateBufferFromName();
 
-                unsafe
+                if (ImGui.InputText("##name", _nameBuffer, ImGuiInputTextFlags.None))
                 {
-                    fixed (byte* bufPtr = _nameBuffer)
-                    {
-                        if (ImGui.InputText("##name", (IntPtr)bufPtr, (uint)_nameBuffer.Length, ImGuiInputTextFlags.None))
-                        {
-                            int nullIndex = Array.IndexOf(_nameBuffer, (byte)0);
-                            _name = Encoding.UTF8.GetString(_nameBuffer, 0, nullIndex >= 0 ? nullIndex : _nameBuffer.Length);
-
-                        }
-                    }
+                    int nullIndex = Array.IndexOf(_nameBuffer, (byte)0);
+                    _name = Encoding.UTF8.GetString(_nameBuffer, 0, nullIndex >= 0 ? nullIndex : _nameBuffer.Length);
                 }
 
                 if (ImGui.Button("Save"))

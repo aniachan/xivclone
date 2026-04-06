@@ -12,7 +12,7 @@ using System.IO;
 using System.Text.Json;
 using Dalamud.Utility;
 using System.Text.Encodings.Web;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using System.Text;
