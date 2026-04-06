@@ -2,86 +2,95 @@ name: Create Release
 
 on:
   push:
-    tags-ignore:
-      - testing_*
+    tags:
+      - "*"
+
+permissions:
+  contents: write
 
 jobs:
   build:
+    if: ${{ !startsWith(github.ref_name, 'testing_') }}
     runs-on: windows-latest
+    env:
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
+
       - name: Setup .NET
-        uses: actions/setup-dotnet@v1
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.x.x'
+          dotnet-version: "10.x"
+
       - name: Restore dependencies
-        run: dotnet restore
+        shell: pwsh
+        run: dotnet restore .\xivclone.sln
+
       - name: Download Dalamud
+        shell: pwsh
         run: |
           Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile latest.zip
           Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
+
       - name: Build
+        shell: pwsh
         run: |
           $ver = '${{ github.ref_name }}'
-          invoke-expression 'dotnet build --no-restore --configuration Release --nologo -p:Version=$ver -p:FileVersion=$ver -p:AssemblyVersion=$ver'
-      - name: write version into jsons
+          dotnet build .\xivclone.sln --no-restore --configuration Release --nologo "-p:Version=$ver" "-p:FileVersion=$ver" "-p:AssemblyVersion=$ver"
+
+      - name: Write version into plugin manifest
+        shell: pwsh
         run: |
           $ver = '${{ github.ref_name }}'
-          $path = './xivclone/bin/x64/Release/xivclone.json'
+          $path = '.\xivclone\bin\x64\Release\xivclone.json'
           $json = Get-Content -Raw $path | ConvertFrom-Json
           $json.AssemblyVersion = $ver
           $content = $json | ConvertTo-Json
-          set-content -Path $path -Value $content
+          Set-Content -Path $path -Value $content
+
       - name: Archive
-        run: Compress-Archive -Path xivclone/bin/x64/Release/* -DestinationPath xivclone.zip
-      - name: Upload a Build Artifact
+        shell: pwsh
+        run: Compress-Archive -Path .\xivclone\bin\x64\Release\* -DestinationPath .\xivclone.zip
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          path: |
-            ./xivclone/bin/x64/Release/*
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: xivclone-release
+          path: .\xivclone\bin\x64\Release\*
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref }}
-          release_name: xivclone ${{ github.ref }}
+          files: .\xivclone.zip
+          name: xivclone ${{ github.ref_name }}
           draft: false
           prerelease: false
-      - name: Upload Release Asset
-        id: upload-release-asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-          asset_path: ./xivclone.zip
-          asset_name: xivclone.zip
-          asset_content_type: application/zip
 
       - name: Write out repo.json
+        shell: pwsh
         run: |
           $ver = '${{ github.ref_name }}'
-          $path = './repo.json'
+          $path = '.\repo.json'
           $json = Get-Content -Raw $path | ConvertFrom-Json
           $json[0].AssemblyVersion = $ver
           $json[0].TestingAssemblyVersion = $ver
-          $json[0].DownloadLinkInstall = $json.DownloadLinkInstall -replace '[^/]+/xivclone.zip',"$ver/xivclone.zip"
-          $json[0].DownloadLinkTesting = $json.DownloadLinkTesting -replace '[^/]+/xivclone.zip',"$ver/xivclone.zip"
-          $json[0].DownloadLinkUpdate = $json.DownloadLinkUpdate -replace '[^/]+/xivclone.zip',"$ver/xivclone.zip"
+          $json[0].DownloadLinkInstall = $json[0].DownloadLinkInstall -replace '[^/]+/xivclone.zip',"$ver/xivclone.zip"
+          $json[0].DownloadLinkTesting = $json[0].DownloadLinkTesting -replace '[^/]+/xivclone.zip',"$ver/xivclone.zip"
+          $json[0].DownloadLinkUpdate = $json[0].DownloadLinkUpdate -replace '[^/]+/xivclone.zip',"$ver/xivclone.zip"
           $content = $json | ConvertTo-Json -AsArray
-          set-content -Path $path -Value $content
+          Set-Content -Path $path -Value $content
 
       - name: Commit repo.json
+        shell: pwsh
         run: |
           git config --global user.name "Actions User"
           git config --global user.email "actions@github.com"
-          git fetch origin master
-          git branch -f master ${{ github.sha }}
-          git checkout master
+          git fetch origin "$env:DEFAULT_BRANCH"
+          git checkout "$env:DEFAULT_BRANCH"
+          git pull --ff-only origin "$env:DEFAULT_BRANCH"
           git add repo.json
-          git commit -m "[CI] Updating repo.json for ${{ github.ref_name }}" || true
-          git push origin master
+          git commit -m "[CI] Updating repo.json for ${{ github.ref_name }}" || exit 0
+          git push origin "$env:DEFAULT_BRANCH"
