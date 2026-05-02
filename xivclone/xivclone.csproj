@@ -30,7 +30,7 @@
   </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="DalamudPackager" Version="14.0.2" />
+        <PackageReference Include="DalamudPackager" Version="15.0.0" />
         <PackageReference Include="ECommons" Version="2.0.0.4" />
         <PackageReference Include="Glamourer.Api" Version="2.6.0" />
         <PackageReference Include="lz4net" Version="1.0.15.93" />

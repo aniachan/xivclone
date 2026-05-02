@@ -39,6 +39,7 @@ public class DalamudUtil : IDisposable
     public event VoidDelegate? ZoneSwitchEnd;
     private DateTime _delayedFrameworkUpdateCheck = DateTime.Now;
     private bool _sentBetweenAreas = false;
+    private IPlayerCharacter? LocalPlayer => _objectTable.LocalPlayer;
 
     public unsafe bool IsGameObjectPresent(IntPtr key)
     {
@@ -68,9 +69,9 @@ public class DalamudUtil : IDisposable
 
     private void InitClassJobIdOnFirstTick(IFramework _)
     {
-        if (_clientState.LocalPlayer != null && _clientState.LocalPlayer.IsValid())
+        if (LocalPlayer != null && LocalPlayer.IsValid())
         {
-            classJobId = _clientState.LocalPlayer.ClassJob.Value.JobIndex;
+            classJobId = LocalPlayer.ClassJob.Value.JobIndex;
             OnLogin();
             Logger.Debug("[DalamudUtil] Initialized class job ID safely on main thread.");
         }
@@ -131,9 +132,9 @@ public class DalamudUtil : IDisposable
         }
 
         if (DateTime.Now < _delayedFrameworkUpdateCheck.AddSeconds(1)) return;
-        if (_clientState.LocalPlayer != null && _clientState.LocalPlayer.IsValid())
+        if (LocalPlayer != null && LocalPlayer.IsValid())
         {
-            var newclassJobId = _clientState.LocalPlayer.ClassJob.Value.JobIndex;
+            var newclassJobId = LocalPlayer.ClassJob.Value.JobIndex;
 
             if (classJobId != newclassJobId)
             {
@@ -174,7 +175,7 @@ public class DalamudUtil : IDisposable
 
     public bool IsLoggedIn => _clientState.IsLoggedIn;
 
-    public bool IsPlayerPresent => _clientState.LocalPlayer != null && _clientState.LocalPlayer.IsValid();
+    public bool IsPlayerPresent => LocalPlayer != null && LocalPlayer.IsValid();
 
     public bool IsObjectPresent(Dalamud.Game.ClientState.Objects.Types.IGameObject? obj)
     {
@@ -200,25 +201,25 @@ public class DalamudUtil : IDisposable
         return (IntPtr)mgr->LookupBuddyByOwnerObject((FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara*)playerPointer);
     }
 
-    public string PlayerName => _clientState.LocalPlayer?.Name.ToString() ?? "--";
+    public string PlayerName => LocalPlayer?.Name.ToString() ?? "--";
 
-    public IntPtr PlayerPointer => _clientState.LocalPlayer?.Address ?? IntPtr.Zero;
+    public IntPtr PlayerPointer => LocalPlayer?.Address ?? IntPtr.Zero;
 
-    public IPlayerCharacter PlayerCharacter => _clientState.LocalPlayer!;
+    public IPlayerCharacter PlayerCharacter => LocalPlayer!;
 
     public bool IsInGpose => _objectTable[201] != null;
 
     public List<IPlayerCharacter> GetPlayerCharacters()
     {
         return _objectTable.Where(obj =>
-            obj.ObjectKind == Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player &&
+            obj.ObjectKind == Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Pc &&
             !string.Equals(obj.Name.ToString(), PlayerName, StringComparison.Ordinal)).Select(p => (IPlayerCharacter)p).ToList();
     }
 
     public Dalamud.Game.ClientState.Objects.Types.ICharacter? GetCharacterFromObjectTableByIndex(int index)
     {
         var objTableObj = _objectTable[index];
-        if (objTableObj!.ObjectKind != Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player) return null;
+        if (objTableObj!.ObjectKind != Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Pc) return null;
         return (Dalamud.Game.ClientState.Objects.Types.ICharacter)objTableObj;
     }
 
@@ -226,7 +227,7 @@ public class DalamudUtil : IDisposable
     {
         foreach (var item in _objectTable)
         {
-            if (item.ObjectKind != Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player) continue;
+            if (item.ObjectKind != Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Pc) continue;
             if (string.Equals(item.Name.ToString(), characterName, StringComparison.Ordinal)) return (IPlayerCharacter)item;
         }
 
@@ -238,7 +239,7 @@ public class DalamudUtil : IDisposable
         for (int i = 0; i < _objectTable.Length; i++)
         {
             if (_objectTable[i] == null) continue;
-            if (_objectTable[i]!.ObjectKind != Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player) continue;
+            if (_objectTable[i]!.ObjectKind != Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Pc) continue;
             if (string.Equals(_objectTable[i]!.Name.ToString(), characterName, StringComparison.Ordinal)) return i;
         }
 

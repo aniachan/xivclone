@@ -108,7 +108,7 @@ namespace xivclone.Windows
 
         private static string GetLabel(ICharacter player, string playerName, int num)
         {
-            if (player.ObjectKind == ObjectKind.Player)
+            if (player.ObjectKind == ObjectKind.Pc)
                 return num == 1 ? playerName : $"{playerName} #{num}";
 
             if (player.ModelType() == 0)
