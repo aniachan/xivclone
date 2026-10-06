@@ -21,10 +21,59 @@ namespace xivclone.PMP
             this.plugin = plugin;
         }
 
+        // Accepts either a snapshot folder (contains snapshot.json) or, as a convenience,
+        // the parent folder of snapshots when it contains exactly one snapshot subfolder.
+        // Returns null (with a logged error) when no snapshot.json can be found.
+        private string? ResolveSnapshotDirectory(string snapshotPath)
+        {
+            if (File.Exists(Path.Combine(snapshotPath, "snapshot.json")))
+            {
+                return snapshotPath;
+            }
+
+            Logger.Debug($"{snapshotPath} has no snapshot.json, checking for a single snapshot subfolder");
+            DirectoryInfo candidate = null;
+            try
+            {
+                foreach (var dir in Directory.GetDirectories(snapshotPath))
+                {
+                    if (File.Exists(Path.Combine(dir, "snapshot.json")))
+                    {
+                        if (candidate != null)
+                        {
+                            // More than one snapshot inside: ambiguous, do not guess.
+                            Logger.Error($"Multiple snapshots found in {snapshotPath}, please select the specific snapshot folder");
+                            return null;
+                        }
+                        candidate = new DirectoryInfo(dir);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Failed to enumerate {snapshotPath}: {ex.Message}");
+                return null;
+            }
+
+            if (candidate == null)
+            {
+                Logger.Error($"{snapshotPath} does not contain a snapshot.json. Select the folder of a single snapshot (the one containing snapshot.json), not the snapshots directory itself.");
+                return null;
+            }
+
+            Logger.Info($"Resolved parent folder {snapshotPath} to snapshot {candidate.FullName}");
+            return candidate.FullName;
+        }
+
         public (string glamourerString, string pmpName, JObject? design, string customize) SnapshotToPMP(string snapshotPath)
         {
             Logger.Debug($"Operating on {snapshotPath}");
             //read snapshot
+            snapshotPath = ResolveSnapshotDirectory(snapshotPath);
+            if (snapshotPath == null)
+            {
+                return (String.Empty, String.Empty, null, String.Empty);
+            }
             string infoJson = File.ReadAllText(Path.Combine(snapshotPath, "snapshot.json"));
             if (infoJson == null)
             {
