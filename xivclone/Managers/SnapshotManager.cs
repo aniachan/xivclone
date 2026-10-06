@@ -43,8 +43,18 @@ namespace xivclone.Managers
         public bool AppendSnapshot(ICharacter character, string snapshotName)
         {
             var charaName = character.Name.TextValue;
-            var path = Path.Combine(Plugin.Configuration.WorkingDirectory, charaName);
-            string infoJson = File.ReadAllText(Path.Combine(path, "snapshot.json"));
+            // Snapshot directories are named <charaName>_<snapshotName>, see SaveSnapshot
+            var path = Path.Combine(Plugin.Configuration.WorkingDirectory, charaName + "_" + snapshotName);
+            var infoPath = Path.Combine(path, "snapshot.json");
+
+            if (!Directory.Exists(path) || !File.Exists(infoPath))
+            {
+                //no existing snapshot for character, just use save mode
+                Logger.Debug("No existing snapshot found, falling back to save mode");
+                return this.SaveSnapshot(character, snapshotName);
+            }
+
+            string infoJson = File.ReadAllText(infoPath);
             if (infoJson == null)
             {
                 Logger.Warn("No snapshot json found, aborting");
@@ -56,12 +66,6 @@ namespace xivclone.Managers
                 Logger.Warn("Failed to deserialize snapshot json, aborting");
                 return false;
             }
-
-                if (!Directory.Exists(path))
-                {
-                    //no existing snapshot for character, just use save mode
-                    this.SaveSnapshot(character, snapshotName);
-                }
 
             //Merge file replacements
             List<FileReplacement> replacements = GetFileReplacementsForCharacter(character);
